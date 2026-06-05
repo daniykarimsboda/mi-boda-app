@@ -158,7 +158,7 @@ function Ring({ pct, color, sz=88, label, sub }) {
 }
 
 export default function App() {
-  const [data, setData]      = useState(() => { try { const s=localStorage.getItem("wos5"); return s?JSON.parse(s):INIT; } catch { return INIT; } });
+  const [data, setData] = useState(() => { try { const s=localStorage.getItem("wos5"); const p=s?JSON.parse(s):INIT; return p?.categories ? p : INIT; } catch { return INIT; } });
   const [sync, setSync]      = useState("loading");
   const [tab,  setTab]       = useState("dashboard");
   const [sidebarOpen, setSO] = useState(true);
@@ -228,10 +228,11 @@ export default function App() {
     });
   }, [debouncedPush]);
 
-  const spent = data.categories.reduce((a,c) => a+c.budgetReal, 0);
-  const estim = data.categories.reduce((a,c) => a+c.budgetEstimated, 0);
-  const d     = daysUntil(data.weddingDate);
-  const cats  = data.categories.map(c => ({
+const safeData = (data?.categories) ? data : INIT;
+const spent = safesafeData.categories.reduce((a,c) => a+c.budgetReal, 0);
+const estim = safesafeData.categories.reduce((a,c) => a+c.budgetEstimated, 0);
+const d     = daysUntil(safeData.weddingDate);
+const cats  = safesafeData.categories.map(c => ({
     ...c, pct: c.tasks.length ? Math.round(c.tasks.filter(t=>t.done).length/c.tasks.length*100) : 0
   }));
 
@@ -242,20 +243,20 @@ export default function App() {
 
   const exportData = () => {
     const lines = [
-      `💍 ${data.coupleName} — Wedding OS`,
+      `💍 ${safeData.coupleName} — Wedding OS`,
       `Fecha: ${data.weddingDate} | Días: ${d}`, ``,
-      `PRESUPUESTO: ${fmt(data.budget)} | Gastado: ${fmt(spent)}`, ``,
+      `PRESUPUESTO: ${fmt(safeData.budget)} | Gastado: ${fmt(spent)}`, ``,
       `CATEGORÍAS:`,
-      ...data.categories.map(c=>`• ${c.label}: ${c.tasks.filter(t=>t.done).length}/${c.tasks.length} | ${fmt(c.budgetReal)}`), ``,
-      `INVITADOS: ${data.guests.length}`,
-      `Confirmados: ${data.guests.filter(g=>g.rsvp==="confirmado").length}`,
-      `Pendientes: ${data.guests.filter(g=>g.rsvp==="pendiente").length}`, ``,
+      ...safeData.categories.map(c=>`• ${c.label}: ${c.tasks.filter(t=>t.done).length}/${c.tasks.length} | ${fmt(c.budgetReal)}`), ``,
+      `INVITADOS: ${safeData.guests.length}`,
+      `Confirmados: ${safeData.guests.filter(g=>g.rsvp==="confirmado").length}`,
+      `Pendientes: ${safeData.guests.filter(g=>g.rsvp==="pendiente").length}`, ``,
       `TIMELINE:`,
-      ...data.timeline.map(t=>`  ${t.time}  ${t.activity}`),
+      ...safeData.timeline.map(t=>`  ${t.time}  ${t.activity}`),
     ].join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([lines],{type:"text/plain"}));
-    a.download = `wedding-os-${data.coupleName.replace(/\s/g,"_")}.txt`;
+    a.download = `wedding-os-${safeData.coupleName.replace(/\s/g,"_")}.txt`;
     a.click();
   };
 
@@ -291,7 +292,7 @@ export default function App() {
         </div>
         {sidebarOpen && (
           <div style={{padding:"12px 18px",borderBottom:"1px solid rgba(224,187,228,.15)"}}>
-            <div className="serif" style={{fontSize:16,color:"#6b5c7e",fontStyle:"italic"}}>{data.coupleName}</div>
+            <div className="serif" style={{fontSize:16,color:"#6b5c7e",fontStyle:"italic"}}>{safeData.coupleName}</div>
             <div style={{fontSize:11,color:"#aaa",marginTop:2,marginBottom:8}}>{data.weddingDate}</div>
             <SyncBadge status={sync}/>
           </div>
@@ -327,7 +328,7 @@ export default function App() {
             <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:28,flexWrap:"wrap",gap:12}}>
               <div>
                 <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300,lineHeight:1.15}}>
-                  Bienvenida, <span style={{fontStyle:"italic",color:"#B2AC88"}}>{data.coupleName.split("&")[0].trim()} ✦</span>
+                  Bienvenida, <span style={{fontStyle:"italic",color:"#B2AC88"}}>{safeData.coupleName.split("&")[0].trim()} ✦</span>
                 </div>
                 <div style={{fontSize:15,color:"#aaa",marginTop:6}}>Todo en un solo lugar para su día perfecto</div>
               </div>
@@ -361,17 +362,17 @@ export default function App() {
               <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
                 <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:10}}>Presupuesto Total</div>
                 <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:16}}>
-                  <div className="serif" style={{fontSize:28,color:"#4a3a5c"}}>{fmt(data.budget)}</div>
-                  <button onClick={()=>{const v=prompt("Nuevo presupuesto MXN:",data.budget);if(v&&!isNaN(v))upd(x=>{x.budget=+v;});}}
+                  <div className="serif" style={{fontSize:28,color:"#4a3a5c"}}>{fmt(safeData.budget)}</div>
+                  <button onClick={()=>{const v=prompt("Nuevo presupuesto MXN:",safeData.budget);if(v&&!isNaN(v))upd(x=>{x.budget=+v;});}}
                     style={{background:"none",border:"none",cursor:"pointer",color:"#ccc"}}><Edit2 size={13}/></button>
                 </div>
-                {[{l:"Gastado",v:spent,c:"#c77daa"},{l:"Estimado",v:estim,c:"#E0BBE4"},{l:"Disponible",v:data.budget-spent,c:"#B2AC88"}].map(r=>(
+                {[{l:"Gastado",v:spent,c:"#c77daa"},{l:"Estimado",v:estim,c:"#E0BBE4"},{l:"Disponible",v:safesafeData.budget-spent,c:"#B2AC88"}].map(r=>(
                   <div key={r.l} style={{marginBottom:8}}>
                     <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#888",marginBottom:4}}>
                       <span>{r.l}</span><span style={{fontWeight:500,color:"#555"}}>{fmt(r.v)}</span>
                     </div>
                     <div style={{height:5,borderRadius:3,background:"#f0e8f5"}}>
-                      <div style={{height:"100%",borderRadius:3,background:r.c,width:`${Math.min(100,(r.v/data.budget)*100)}%`,transition:"width .8s"}}/>
+                      <div style={{height:"100%",borderRadius:3,background:r.c,width:`${Math.min(100,(r.v/safesafeData.budget)*100)}%`,transition:"width .8s"}}/>
                     </div>
                   </div>
                 ))}
@@ -380,11 +381,11 @@ export default function App() {
               {/* Guests */}
               <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
                 <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:10}}>Invitados</div>
-                <div className="serif" style={{fontSize:44,color:"#4a3a5c",fontWeight:300,marginBottom:14}}>{data.guests.length}</div>
+                <div className="serif" style={{fontSize:44,color:"#4a3a5c",fontWeight:300,marginBottom:14}}>{safeData.guests.length}</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                  {[{l:"Conf.",v:data.guests.filter(g=>g.rsvp==="confirmado").length,c:"#B2AC88"},
-                    {l:"Pend.",v:data.guests.filter(g=>g.rsvp==="pendiente").length,c:"#FFD580"},
-                    {l:"Rech.",v:data.guests.filter(g=>g.rsvp==="rechazado").length,c:"#F4A5A5"}].map(s=>(
+                  {[{l:"Conf.",v:safeData.guests.filter(g=>g.rsvp==="confirmado").length,c:"#B2AC88"},
+                    {l:"Pend.",v:safeData.guests.filter(g=>g.rsvp==="pendiente").length,c:"#FFD580"},
+                    {l:"Rech.",v:safeData.guests.filter(g=>g.rsvp==="rechazado").length,c:"#F4A5A5"}].map(s=>(
                     <div key={s.l} style={{background:s.c+"33",borderRadius:11,padding:"9px 6px",textAlign:"center"}}>
                       <div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{s.v}</div>
                       <div style={{fontSize:10,color:"#888"}}>{s.l}</div>
@@ -424,7 +425,7 @@ export default function App() {
             <div className="glass" style={{borderRadius:22,padding:"26px 30px"}}>
               <div className="serif" style={{fontSize:24,color:"#4a3a5c",marginBottom:18}}>Próximas Tareas ✦</div>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                {data.categories.flatMap(c=>c.tasks.filter(t=>!t.done).map(t=>({...t,cat:c.label,cc:c.color})))
+                {safeData.categories.flatMap(c=>c.tasks.filter(t=>!t.done).map(t=>({...t,cat:c.label,cc:c.color})))
                   .sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,6).map(t=>(
                   <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderRadius:13,background:"rgba(255,255,255,.55)",border:"1px solid rgba(224,187,228,.2)"}}>
                     <div style={{width:10,height:10,borderRadius:"50%",background:t.cc,flexShrink:0}}/>
@@ -576,7 +577,7 @@ export default function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.guests.filter(g=>(gf==="todos"||g.rsvp===gf)&&g.name.toLowerCase().includes(gs.toLowerCase())).map((g,i)=>(
+                  {safeData.guests.filter(g=>(gf==="todos"||g.rsvp===gf)&&g.name.toLowerCase().includes(gs.toLowerCase())).map((g,i)=>(
                     <tr key={g.id} style={{borderBottom:"1px solid rgba(224,187,228,.1)",background:i%2===0?"transparent":"rgba(255,255,255,.35)"}}>
                       <td style={{padding:"12px 16px",fontSize:14,color:"#4a3a5c",fontWeight:500}}>{g.name}</td>
                       <td style={{padding:"12px 16px"}}>
@@ -614,7 +615,7 @@ export default function App() {
             </div>
             <div style={{maxWidth:640,margin:"0 auto",position:"relative"}}>
               <div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)",borderRadius:1}}/>
-              {data.timeline.map((item,i)=>{
+              {safeData.timeline.map((item,i)=>{
                 const TI = IconMap[item.icon]||Star;
                 return (
                   <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}>
