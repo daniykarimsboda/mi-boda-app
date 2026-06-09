@@ -1,33 +1,30 @@
+// src/components/TableConfig.jsx
 import { useState, useEffect } from "react";
 
-const TableConfig = () => {
-  const [limit, setLimit] = useState(() => {
-    const saved = localStorage.getItem("wedding_max_people_per_table");
-    return saved ? parseInt(saved) : 10;
-  });
+export default function TableConfig() {
+  const [limit, setLimit] = useState(10);
 
-  const handleChange = (e) => {
-    const val = parseInt(e.target.value);
-    if (!isNaN(val) && val > 0) {
-      setLimit(val);
-      localStorage.setItem("wedding_max_people_per_table", val);
-    }
+  useEffect(() => {
+    const saved = localStorage.getItem("wedding_max_people_per_table");
+    if (saved) setLimit(parseInt(saved));
+  }, []);
+
+  const saveLimit = () => {
+    localStorage.setItem("wedding_max_people_per_table", limit);
+    alert("Límite guardado. Recarga la página para aplicar cambios.");
   };
 
   return (
-    <div className="bg-white/70 backdrop-blur-sm p-4 rounded-xl border border-[#E0BBE4]/30">
-      <label className="block text-sm font-medium text-[#4a3a5c] mb-1">
-        Límite de personas por mesa:
-      </label>
+    <div className="p-4 border rounded bg-white">
+      <label className="block font-medium">Límite de personas por mesa:</label>
       <input
         type="number"
         min="1"
         value={limit}
-        onChange={handleChange}
-        className="mt-1 p-2 border rounded-lg w-28 text-center bg-white"
+        onChange={e => setLimit(parseInt(e.target.value) || 1)}
+        className="border p-2 rounded w-24 mt-1"
       />
+      <button onClick={saveLimit} className="ml-2 bg-blue-500 text-white px-3 py-1 rounded">Guardar</button>
     </div>
   );
-};
-
-export default TableConfig;
+}
