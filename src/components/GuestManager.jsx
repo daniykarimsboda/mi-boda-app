@@ -1,230 +1,215 @@
-import { useState, useEffect, useCallback } from "react";
-import { Search, Phone, RefreshCw } from "lucide-react";
+// src/components/GuestManager.jsx
+import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 
-const GuestManager = () => {
-  const [guests, setGuests] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [filterCategory, setFilterCategory] = useState("Todas");
-  const [filterPriority, setFilterPriority] = useState("Todas");
-  const [search, setSearch] = useState("");
-  const [maxPerTable, setMaxPerTable] = useState(() => {
-    const saved = localStorage.getItem("wedding_max_people_per_table");
-    return saved ? parseInt(saved) : 10;
-  });
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1kv3eReuvMR3buhp2TOC3EXOBZLyzomvhLF8GXw7BxcsHzKmtW43VGY5Uvm9AdQwlL7VxmWbO_DCF/pub?gid=65042535&single=true&output=csv";
 
-  const loadGuests = useCallback(async () => {
-    const { data, error } = await supabase.from("guests_sheets").select("*");
-    if (error) console.error(error);
-    else setGuests(data || []);
+// Helper para parsear CSV simple (maneja comillas)
+const parseCSV = (text) => {
+  const lines = text.split(/\r?\n/);
+  const headers = lines[0].split(",").map(h => h.replace(/"/g, "").trim());
+  return lines.slice(1).filter(line => line.trim()).map(line => {
+    const values = [];
+    let inQuote = false;
+    let current = "";
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') {
+        inQuote = !inQuote;
+      } else if (ch === "," && !inQuote) {
+        values.push(current.trim());
+        current = "";
+      } else {
+        current += ch;
+      }
+    }
+    values.push(current.trim());
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = values[idx]?.replace(/^"|"$/g, "") || ""; });
+    return obj;
+  });
+};
+
+export default function GuestManager() {
+  const [guests, setGuests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filters, setFilters] = useState({ categoria: "", prioridad: "", nombre: "" });
+  const [maxPerTable, setMaxPerTable] = useState(10);
+
+  // Cargar límite de mesa desde localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("wedding_max_people_per_table");
+    if (saved) setMaxPerTable(parseInt(saved));
   }, []);
 
-  const syncWithSheets = useCallback(async () => {
-    setLoading(true);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    try {
-      const res = await fetch(
-        "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1kv3eReuvMR3buhp2TOC3EXOBZLyzomvhLF8GXw7BxcsHzKmtW43VGY5Uvm9AdQwlL7VxmWbO_DCF/pub?gid=65042535&single=true&output=csv",
-        { signal: controller.signal }
-      );
-      clearTimeout(timeout);
-      const csvText = await res.text();
-      const rows = csvText.split("\n").slice(1);
-      const newGuests = rows
-        .map(row => {
-          const [Nombre, Telefono, Categoria, Prioridad, Invitado_de, Comentario] = row.split(",");
-          if (!Nombre || !Telefono) return null;
-          return {
-            nombre: Nombre.trim(),
-            telefono: Telefono.trim(),
-            categoria: Categoria?.trim() || "",
-            prioridad: Prioridad?.trim() || "",
-            invitado_de: Invitado_de?.trim() || "",
-            comentario: Comentario?.trim() || "",
-          };
-        })
-        .filter(g => g !== null);
+  // Función para obtener siguiente número de mesa
+  const getNextTableNumber = (letter, currentGuests) => {
+    const mesaPrefix = `${letter}-`;
+    const existingNumbers = currentGuests
+      .filter(g => g.mesa && g.mesa.startsWith(mesaPrefix))
+      .map(g => parseInt(g.mesa.split("-")[1]))
+      .filter(n => !isNaN(n));
+    for (let i = 1; i <= maxPerTable; i++) {
+      if (!existingNumbers.includes(i)) return i;
+    }
+    return null; // mesa llena
+  };
 
-      for (const guest of newGuests) {
-        const { error } = await supabase.from("guests_sheets").upsert(
-          {
-            telefono: guest.telefono,
-            nombre: guest.nombre,
-            categoria: guest.categoria,
-            prioridad: guest.prioridad,
-            invitado_de: guest.invitado_de,
-            comentario: guest.comentario,
-          },
-          { onConflict: "telefono", ignoreDuplicates: false }
-        );
-        if (error) console.error(error);
-      }
-      await loadGuests();
-      alert(`Sincronizados ${newGuests.length} invitados desde Google Sheets`);
+  // Sincronizar con Google Sheets y Supabase
+  const syncWithSheets = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(CSV_URL, { signal: controller.signal });
+      clearTimeout(timeout);
+      const text = await res.text();
+      const rows = parseCSV(text);
+      
+      // Obtener invitados existentes en Supabase
+      const { data: existing, error: fetchError } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
+      if (fetchError) throw fetchError;
+      const existingMap = new Map(existing.map(g => [g.telefono, g]));
+      
+      // Preparar upsert (no sobrescribir rsvp, alergias, mesa)
+      const upsertData = rows.map(row => ({
+        telefono: row.Telefono || "",
+        nombre: row.Nombre || "",
+        categoria: row.Categoria || "",
+        prioridad: row.Prioridad || "",
+        invitado_de: row["Invitado de"] || "",
+        comentario: row.Comentario || "",
+        rsvp: existingMap.get(row.Telefono)?.rsvp ?? false,
+        alergias: existingMap.get(row.Telefono)?.alergias ?? "",
+        mesa: existingMap.get(row.Telefono)?.mesa ?? null,
+      })).filter(g => g.telefono);
+      
+      const { error: upsertError } = await supabase.from("guests").upsert(upsertData, { onConflict: "telefono" });
+      if (upsertError) throw upsertError;
+      
+      // Recargar datos actualizados
+      const { data: final, error: finalError } = await supabase.from("guests").select("*");
+      if (finalError) throw finalError;
+      setGuests(final);
     } catch (err) {
       console.error(err);
-      alert("Error al cargar invitados desde Google Sheets");
+      setError("Error al cargar invitados. Verifica la URL del CSV.");
     } finally {
       setLoading(false);
     }
-  }, [loadGuests]);
+  };
 
-  const assignTable = async (guestId, letter) => {
-    const guestsInLetter = guests.filter(g => g.mesa?.startsWith(letter));
-    const takenNumbers = guestsInLetter
-      .map(g => parseInt(g.mesa.split("-")[1]))
-      .filter(n => !isNaN(n))
-      .sort((a, b) => a - b);
-    let nextNumber = 1;
-    for (let i = 0; i < takenNumbers.length; i++) {
-      if (takenNumbers[i] === nextNumber) nextNumber++;
-      else break;
-    }
-    if (nextNumber > maxPerTable) {
-      alert(`Límite de ${maxPerTable} personas por mesa alcanzado para mesa ${letter}`);
+  // Asignar mesa manualmente
+  const assignTable = async (guestId, currentMesa, newLetter) => {
+    if (!newLetter) return;
+    // Obtener lista actualizada de invitados
+    const { data: allGuests } = await supabase.from("guests").select("*");
+    const guest = allGuests.find(g => g.id === guestId);
+    if (!guest) return;
+    
+    // Si la letra no cambió, no hacer nada
+    const currentLetter = guest.mesa ? guest.mesa.split("-")[0] : null;
+    if (currentLetter === newLetter) return;
+    
+    // Calcular nuevo número
+    const nextNum = getNextTableNumber(newLetter, allGuests);
+    if (nextNum === null) {
+      alert(`La mesa ${newLetter} ya está llena (límite ${maxPerTable} personas).`);
       return;
     }
-    const mesaValue = `${letter}-${nextNumber}`;
-    const { error } = await supabase.from("guests_sheets").update({ mesa: mesaValue }).eq("id", guestId);
+    const newMesa = `${newLetter}-${nextNum}`;
+    
+    const { error } = await supabase.from("guests").update({ mesa: newMesa }).eq("id", guestId);
     if (error) console.error(error);
-    else loadGuests();
+    else syncWithSheets(); // refrescar
   };
 
   useEffect(() => {
-    loadGuests();
+    syncWithSheets();
+    // Suscripción realtime opcional
     const subscription = supabase
-      .channel("guests-sheets-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "guests_sheets" }, () => loadGuests())
+      .channel("guests_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "guests" }, () => syncWithSheets())
       .subscribe();
     return () => subscription.unsubscribe();
-  }, [loadGuests]);
-
-  useEffect(() => {
-    const handleStorage = (e) => {
-      if (e.key === "wedding_max_people_per_table") {
-        setMaxPerTable(parseInt(e.newValue) || 10);
-      }
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
+  // Filtros
   const filteredGuests = guests.filter(g => {
-    if (filterCategory !== "Todas" && g.categoria !== filterCategory) return false;
-    if (filterPriority !== "Todas" && g.prioridad !== filterPriority) return false;
-    if (search && !g.nombre?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filters.categoria && g.categoria !== filters.categoria) return false;
+    if (filters.prioridad && g.prioridad !== filters.prioridad) return false;
+    if (filters.nombre && !g.nombre.toLowerCase().includes(filters.nombre.toLowerCase())) return false;
     return true;
   });
 
-  // Variable de entorno para RSVP (puedes cambiarla después)
-  const rsvpUrl = import.meta.env.VITE_RSVP_URL || "https://tursvp.com/formulario";
+  if (loading) return <div className="p-4 text-center">Cargando invitados...</div>;
+  if (error) return <div className="p-4 text-red-500">{error}</div>;
 
   return (
-    <div className="mt-6 border-t border-[#E0BBE4]/30 pt-4">
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="text-lg font-semibold text-[#4a3a5c]">📋 Invitados desde Google Sheets</h3>
-        <button
-          onClick={syncWithSheets}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 bg-[#E0BBE4]/20 rounded-full text-sm text-[#7b4f8a] hover:bg-[#E0BBE4]/40 transition"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          {loading ? "Sincronizando..." : "Sincronizar con Sheets"}
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 pr-3 py-1.5 border border-gray-200 rounded-full text-sm bg-white/70"
-          />
-        </div>
-        <select
-          value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
-          className="px-3 py-1.5 border border-gray-200 rounded-full text-sm bg-white/70"
-        >
-          <option>Todas</option>
-          <option>Familia</option>
-          <option>Amigos</option>
-          <option>Trabajo</option>
-          <option>Conocidos</option>
+    <div className="p-4">
+      <h2 className="text-2xl font-bold mb-4">Invitados</h2>
+      
+      {/* Filtros */}
+      <div className="flex flex-wrap gap-4 mb-4">
+        <input
+          type="text"
+          placeholder="Buscar por nombre..."
+          value={filters.nombre}
+          onChange={e => setFilters({ ...filters, nombre: e.target.value })}
+          className="border p-2 rounded"
+        />
+        <select value={filters.categoria} onChange={e => setFilters({ ...filters, categoria: e.target.value })} className="border p-2 rounded">
+          <option value="">Todas las categorías</option>
+          <option>Familia</option><option>Amigos</option><option>Trabajo</option><option>Conocidos</option>
         </select>
-        <select
-          value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value)}
-          className="px-3 py-1.5 border border-gray-200 rounded-full text-sm bg-white/70"
-        >
-          <option>Todas</option>
-          <option>Alta</option>
-          <option>Media</option>
-          <option>Baja</option>
+        <select value={filters.prioridad} onChange={e => setFilters({ ...filters, prioridad: e.target.value })} className="border p-2 rounded">
+          <option value="">Todas las prioridades</option>
+          <option>Alta</option><option>Media</option><option>Baja</option>
         </select>
       </div>
 
+      {/* Tabla */}
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-[#E0BBE4]/10">
-            <tr>
-              <th className="p-2 text-left">Nombre</th>
-              <th className="p-2 text-left">Teléfono</th>
-              <th className="p-2 text-left">Categoría</th>
-              <th className="p-2 text-left">Prioridad</th>
-              <th className="p-2 text-left">Invitado de</th>
-              <th className="p-2 text-left">Mesa</th>
-              <th className="p-2 text-left">WhatsApp</th>
+        <table className="min-w-full bg-white border">
+          <thead>
+            <tr className="bg-gray-100">
+              <th className="p-2 border">Nombre</th><th className="p-2 border">Teléfono</th><th className="p-2 border">Categoría</th>
+              <th className="p-2 border">Prioridad</th><th className="p-2 border">Invitado de</th><th className="p-2 border">Comentario</th>
+              <th className="p-2 border">Mesa</th><th className="p-2 border">RSVP</th><th className="p-2 border">Alergias</th><th className="p-2 border">WhatsApp</th>
             </tr>
           </thead>
           <tbody>
-            {filteredGuests.map((g) => (
-              <tr key={g.id} className="border-t border-gray-100">
-                <td className="p-2">{g.nombre}</td>
-                <td className="p-2">{g.telefono}</td>
-                <td className="p-2">{g.categoria}</td>
-                <td className="p-2">{g.prioridad}</td>
-                <td className="p-2">{g.invitado_de}</td>
+            {filteredGuests.map(guest => (
+              <tr key={guest.id} className="border-b">
+                <td className="p-2">{guest.nombre}</td><td className="p-2">{guest.telefono}</td><td className="p-2">{guest.categoria}</td>
+                <td className="p-2">{guest.prioridad}</td><td className="p-2">{guest.invitado_de}</td><td className="p-2">{guest.comentario}</td>
                 <td className="p-2">
                   <select
-                    value={g.mesa ? g.mesa.split("-")[0] : ""}
-                    onChange={(e) => assignTable(g.id, e.target.value)}
-                    className="border rounded px-1 py-0.5 text-xs"
+                    value={guest.mesa ? guest.mesa.split("-")[0] : ""}
+                    onChange={e => assignTable(guest.id, guest.mesa, e.target.value)}
+                    className="border rounded p-1"
                   >
                     <option value="">Sin mesa</option>
-                    {[...Array(26)].map((_, i) => {
-                      const letter = String.fromCharCode(65 + i);
-                      return <option key={letter} value={letter}>{`Mesa ${letter}`}</option>;
-                    })}
+                    {[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].map(letra => (
+                      <option key={letra} value={letra}>Mesa {letra}</option>
+                    ))}
                   </select>
-                  {g.mesa && <span className="ml-1 text-xs text-gray-500">({g.mesa})</span>}
+                  {guest.mesa && <span className="ml-2 text-sm">({guest.mesa})</span>}
                 </td>
+                <td className="p-2">{guest.rsvp ? "✅ Confirmado" : "⏳ Pendiente"}</td>
+                <td className="p-2">{guest.alergias || "Ninguna"}</td>
                 <td className="p-2">
-                  <a
-                    href={`https://wa.me/${g.telefono}?text=Hola%20${encodeURIComponent(g.nombre)}%2C%20confirma%20tu%20asistencia%20en%20${rsvpUrl}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-green-600 hover:text-green-800"
-                  >
-                    <Phone size={16} />
+                  <a href={`https://wa.me/${guest.telefono}?text=Hola%20${encodeURIComponent(guest.nombre)}%2C%20confirma%20tu%20asistencia%20en%20${process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form"}`} target="_blank" rel="noreferrer">
+                    📱
                   </a>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {filteredGuests.length === 0 && !loading && (
-          <div className="text-center py-6 text-gray-400">
-            No hay invitados. Haz clic en "Sincronizar con Sheets".
-          </div>
-        )}
       </div>
     </div>
   );
-};
-
-export default GuestManager;
+}
