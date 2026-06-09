@@ -41,37 +41,57 @@ export default function TableDashboard() {
   }));
 
   return (
-    <div className="p-4">
-      <h3 className="text-xl font-bold mb-3">Distribución de Mesas</h3>
+    <div className="space-y-4">
+      <h3 className="serif text-2xl text-[#4a3a5c] font-light">Distribución de Mesas</h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {tables.map(table => (
           <div
             key={table.letter}
             onClick={() => setSelectedTable(table.letter)}
-            className="border rounded-lg p-3 bg-gray-50 cursor-pointer hover:bg-gray-100 transition"
+            className="glass rounded-xl p-4 cursor-pointer hover:bg-white/40 transition-all"
           >
-            <div className="font-bold text-lg">Mesa {table.letter}</div>
-            <div className="text-sm text-gray-600">
+            <div className="serif text-xl font-medium text-[#4a3a5c]">Mesa {table.letter}</div>
+            <div className="text-sm text-[#6b5c7e] mt-1">
               Ocupación: {table.count}/{table.limit}
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-              <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${(table.count / table.limit) * 100}%` }}></div>
+            <div className="w-full bg-[#E0BBE4]/30 rounded-full h-2 mt-2">
+              <div
+                className="bg-[#B2AC88] h-2 rounded-full"
+                style={{ width: `${(table.count / table.limit) * 100}%` }}
+              />
             </div>
           </div>
         ))}
       </div>
+      {tables.length === 0 && (
+        <div className="text-center py-8 text-[#aaa]">No hay mesas asignadas aún.</div>
+      )}
 
-      {/* Modal para lista de invitados al hacer clic */}
+      {/* Modal estilo glass */}
       {selectedTable && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setSelectedTable(null)}>
-          <div className="bg-white rounded-lg p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
-            <h4 className="text-xl font-bold mb-2">Mesa {selectedTable}</h4>
-            <ul className="list-disc pl-5">
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
+          onClick={() => setSelectedTable(null)}
+        >
+          <div
+            className="glass rounded-2xl p-6 max-w-md w-full mx-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <h4 className="serif text-2xl text-[#4a3a5c] mb-3">Mesa {selectedTable}</h4>
+            <ul className="space-y-2 max-h-64 overflow-auto">
               {tables.find(t => t.letter === selectedTable)?.guests.map(g => (
-                <li key={g.id}>{g.nombre} {g.rsvp ? "✅" : "⏳"}</li>
+                <li key={g.id} className="flex justify-between items-center border-b border-[#E0BBE4]/20 py-1">
+                  <span className="text-[#4a3a5c]">{g.nombre}</span>
+                  <span className="text-xs text-[#B2AC88]">{g.rsvp ? "✅ Confirmado" : "⏳ Pendiente"}</span>
+                </li>
               ))}
             </ul>
-            <button className="mt-4 bg-gray-200 px-4 py-2 rounded" onClick={() => setSelectedTable(null)}>Cerrar</button>
+            <button
+              onClick={() => setSelectedTable(null)}
+              className="mt-4 w-full py-2 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/40 transition"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
       )}
