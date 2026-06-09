@@ -46,6 +46,12 @@ const parsePrioridad = (val) => {
   return "Media";
 };
 
+// Genera un identificador único para invitados sin teléfono
+const generarTelefonoArtificial = (nombre) => {
+  if (!nombre) return `sin_telefono_${Date.now()}`;
+  return `sin_telefono_${nombre.toLowerCase().replace(/\s/g, "_")}`;
+};
+
 export default function GuestManager() {
   const [guests, setGuests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -85,130 +91,132 @@ export default function GuestManager() {
     }
   };
 
-const syncWithSheets = async () => {
-  setSyncing(true);
-  setError(null);
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
-    const response = await fetch(CSV_URL, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    const text = await response.text();
-    console.log("CSV crudo (primeros 200 caracteres):", text.substring(0, 200));
-    
-    const rows = parseCSV(text);
-    console.log("Filas parseadas (primeras 2):", rows.slice(0, 2));
-    
-    if (rows.length === 0) throw new Error("El CSV está vacío o no se pudo parsear");
+  const syncWithSheets = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const response = await fetch(CSV_URL, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const text = await response.text();
+      const rows = parseCSV(text);
+      
+      if (rows.length === 0) throw new Error("El CSV está vacío o no se pudo parsear");
 
-    // Normalizar nombres de columnas
-    const normalizeKey = (key) => {
-      return key.toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/\s/g, "");
-    };
+      // Normalizar nombres de columnas (sin acentos)
+      const normalizeKey = (key) => {
+        return key.toLowerCase()
+          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/\s/g, "");
+      };
 
-    const normalizedRows = rows.map(row => {
-      const newRow = {};
-      Object.keys(row).forEach(key => {
-        const normKey = normalizeKey(key);
-        newRow[normKey] = row[key];
+      const normalizedRows = rows.map(row => {
+        const newRow = {};
+        Object.keys(row).forEach(key => {
+          const normKey = normalizeKey(key);
+          newRow[normKey] = row[key];
+        });
+        return newRow;
       });
-      return newRow;
-    });
-    
-    console.log("Primera fila normalizada:", normalizedRows[0]);
+      
+      // Detectar columnas
+      const telefonoKey = Object.keys(normalizedRows[0]).find(k => 
+        k === "telefono" || k === "teléfono" || k === "phone"
+      ) || "telefono";
+      
+      const nombreKey = Object.keys(normalizedRows[0]).find(k => k === "nombre" || k === "name") || "nombre";
+      const categoriaKey = Object.keys(normalizedRows[0]).find(k => k === "categoria" || k === "category") || "categoria";
+      const prioridadKey = Object.keys(normalizedRows[0]).find(k => k === "prioridad" || k === "priority") || "prioridad";
+      const invitadoDeKey = Object.keys(normalizedRows[0]).find(k => k === "invitadode" || k === "invitado_de") || "invitadode";
+      const comentarioKey = Object.keys(normalizedRows[0]).find(k => k === "comentario" || k === "comment") || "comentario";
 
-    // Detectar columna de teléfono
-    const telefonoKey = Object.keys(normalizedRows[0]).find(k => 
-      k === "telefono" || k === "teléfono" || k === "phone" || k === "celular"
-    ) || "telefono";
-    
-    console.log("Clave de teléfono usada:", telefonoKey);
+      // Obtener datos existentes para preservar rsvp, alergias, mesa
+      const { data: existing } = await supabase.from("guests").select("telefono, nombre, rsvp, alergias, mesa");
+      // Mapa por teléfono artificial también (para quienes no tienen teléfono)
+      const existingMap = new Map();
+      existing?.forEach(e => {
+        // Si el teléfono es nulo o empieza con "sin_telefono_", usamos el nombre como clave adicional
+        if (e.telefono && !e.telefono.startsWith("sin_telefono_")) {
+          existingMap.set(e.telefono, e);
+        } else {
+          // Guardar también por nombre normalizado para invitados sin teléfono
+          existingMap.set(`nombre:${e.nombre?.toLowerCase().trim()}`, e);
+        }
+      });
 
-    // Filtrar filas con teléfono no vacío (después de limpiar)
-    const validRows = normalizedRows.filter(row => {
-      const tel = row[telefonoKey]?.trim();
-      return tel && tel !== "";
-    });
-    
-    console.log(`Filas con teléfono válido: ${validRows.length} de ${normalizedRows.length}`);
-    
-    if (validRows.length === 0) {
-      // Mostrar detalles de la primera fila para depurar
-      const firstRow = normalizedRows[0];
-      const telValue = firstRow[telefonoKey];
-      throw new Error(
-        `No hay filas con teléfono válido. Columna '${telefonoKey}' tiene valor: "${telValue}". ` +
-        `Columnas: ${Object.keys(firstRow).join(", ")}. Revisa que los teléfonos estén escritos en la hoja.`
-      );
-    }
-
-    // Obtener datos existentes
-    const { data: existing } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
-    const existingMap = new Map(existing?.map(e => [e.telefono, e]) || []);
-
-    // Mapear columnas
-    const nombreKey = Object.keys(normalizedRows[0]).find(k => k === "nombre" || k === "name") || "nombre";
-    const categoriaKey = Object.keys(normalizedRows[0]).find(k => k === "categoria" || k === "category") || "categoria";
-    const prioridadKey = Object.keys(normalizedRows[0]).find(k => k === "prioridad" || k === "priority") || "prioridad";
-    const invitadoDeKey = Object.keys(normalizedRows[0]).find(k => k === "invitadode" || k === "invitado_de") || "invitadode";
-    const comentarioKey = Object.keys(normalizedRows[0]).find(k => k === "comentario" || k === "comment") || "comentario";
-
-    // Agrupar por teléfono (eliminar duplicados)
-    const uniqueMap = new Map();
-    for (const row of validRows) {
-      const telefono = row[telefonoKey].trim();
-      if (!uniqueMap.has(telefono)) {
-        uniqueMap.set(telefono, {
-          telefono,
-          nombre: row[nombreKey]?.trim() || "Sin nombre",
+      // Procesar todas las filas (sin filtrar por teléfono vacío)
+      const upsertData = [];
+      for (const row of normalizedRows) {
+        let telefono = row[telefonoKey]?.trim();
+        const nombre = row[nombreKey]?.trim() || "Sin nombre";
+        
+        // Si no hay teléfono, generar uno artificial basado en el nombre
+        let buscarKey = telefono;
+        let telefonoFinal = telefono;
+        if (!telefono || telefono === "") {
+          telefonoFinal = generarTelefonoArtificial(nombre);
+          buscarKey = `nombre:${nombre.toLowerCase().trim()}`;
+        }
+        
+        // Buscar si ya existe (por teléfono real o por nombre artificial)
+        let existente = null;
+        if (telefono && !telefono.startsWith("sin_telefono_")) {
+          existente = existingMap.get(telefono);
+        }
+        if (!existente && buscarKey) {
+          existente = existingMap.get(buscarKey);
+        }
+        
+        upsertData.push({
+          telefono: telefonoFinal,
+          nombre: nombre,
           categoria: row[categoriaKey]?.trim() || "",
           prioridad: parsePrioridad(row[prioridadKey]?.trim() || "Media"),
           invitado_de: row[invitadoDeKey]?.trim() || "",
           comentario: row[comentarioKey]?.trim() || "",
-          rsvp: existingMap.get(telefono)?.rsvp ?? false,
-          alergias: existingMap.get(telefono)?.alergias ?? "",
-          mesa: existingMap.get(telefono)?.mesa ?? null,
+          rsvp: existente?.rsvp ?? false,
+          alergias: existente?.alergias ?? "",
+          mesa: existente?.mesa ?? null,
         });
       }
-    }
-    const upsertData = Array.from(uniqueMap.values());
-    
-    // Envío uno por uno
-    let successCount = 0;
-    let errorCount = 0;
-    for (const item of upsertData) {
-      const { error } = await supabase
-        .from("guests")
-        .upsert(item, { onConflict: "telefono" });
-      if (error) {
-        console.error("Error con teléfono", item.telefono, error);
-        errorCount++;
-      } else {
-        successCount++;
+      
+      if (upsertData.length === 0) throw new Error("No hay datos para sincronizar");
+
+      // Envío uno por uno
+      let successCount = 0;
+      let errorCount = 0;
+      for (const item of upsertData) {
+        const { error } = await supabase
+          .from("guests")
+          .upsert(item, { onConflict: "telefono" });
+        if (error) {
+          console.error("Error al guardar", item.nombre, error);
+          errorCount++;
+        } else {
+          successCount++;
+        }
       }
-    }
 
-    if (errorCount > 0) {
-      throw new Error(`${errorCount} registros fallaron. Revisa la consola.`);
+      if (errorCount > 0) {
+        console.warn(`${errorCount} registros fallaron, pero se continuó.`);
+      }
+      
+      await loadGuests();
+      alert(`✅ Sincronización completa: ${successCount} invitados actualizados.`);
+    } catch (err) {
+      console.error(err);
+      if (err.name === "AbortError") {
+        setError("La sincronización tardó demasiado. Revisa tu conexión.");
+      } else {
+        setError("Error al sincronizar: " + err.message);
+      }
+    } finally {
+      setSyncing(false);
     }
-
-    await loadGuests();
-    alert(`✅ Sincronización exitosa: ${successCount} invitados actualizados.`);
-  } catch (err) {
-    console.error(err);
-    if (err.name === "AbortError") {
-      setError("La sincronización tardó demasiado. Revisa tu conexión o la URL del CSV.");
-    } else {
-      setError("Error al sincronizar: " + err.message);
-    }
-  } finally {
-    setSyncing(false);
-  }
-};
+  };
 
   const assignTable = async (guestId, newLetter) => {
     if (!newLetter) return;
@@ -246,11 +254,7 @@ const syncWithSheets = async () => {
   const glassCard = "glass rounded-2xl p-5 md:p-6";
 
   if (loading && !syncing) {
-    return (
-      <div className="flex justify-center items-center py-16">
-        <div className="text-[#4a3a5c]">Cargando invitados...</div>
-      </div>
-    );
+    return <div className="flex justify-center items-center py-16">Cargando invitados...</div>;
   }
 
   return (
@@ -324,7 +328,9 @@ const syncWithSheets = async () => {
             {filteredGuests.map((guest, idx) => (
               <tr key={guest.id} className={`border-b border-[#E0BBE4]/15 ${idx % 2 === 0 ? "bg-white/20" : "bg-transparent"} hover:bg-[#E0BBE4]/10 transition`}>
                 <td className="py-2 px-2 font-medium text-[#4a3a5c]">{guest.nombre}</td>
-                <td className="py-2 px-2 text-[#6b5c7e]">{guest.telefono}</td>
+                <td className="py-2 px-2 text-[#6b5c7e]">
+                  {guest.telefono && !guest.telefono.startsWith("sin_telefono_") ? guest.telefono : "—"}
+                </td>
                 <td className="py-2 px-2">{guest.categoria}</td>
                 <td className="py-2 px-2">
                   <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium
@@ -352,14 +358,18 @@ const syncWithSheets = async () => {
                 <td className="py-2 px-2">{guest.rsvp ? "✅ Confirmado" : "⏳ Pendiente"}</td>
                 <td className="py-2 px-2">{guest.alergias || "Ninguna"}</td>
                 <td className="py-2 px-2">
-                  <a
-                    href={`https://wa.me/${guest.telefono}?text=Hola%20${encodeURIComponent(guest.nombre)}%2C%20confirma%20tu%20asistencia%20en%20${process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form"}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[#B2AC88] hover:text-[#7a7555] transition"
-                  >
-                    📱
-                  </a>
+                  {guest.telefono && !guest.telefono.startsWith("sin_telefono_") ? (
+                    <a
+                      href={`https://wa.me/${guest.telefono}?text=Hola%20${encodeURIComponent(guest.nombre)}%2C%20confirma%20tu%20asistencia%20en%20${process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form"}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[#B2AC88] hover:text-[#7a7555] transition"
+                    >
+                      📱
+                    </a>
+                  ) : (
+                    <span className="text-gray-400 text-xs">Sin WhatsApp</span>
+                  )}
                 </td>
               </tr>
             ))}
