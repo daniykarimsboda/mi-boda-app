@@ -67,34 +67,34 @@ export default function TableDashboard() {
         <div className="text-center py-8 text-[#aaa]">No hay mesas asignadas aún.</div>
       )}
 
-      {/* Modal estilo glass */}
-      {selectedTable && (
-        <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
-          onClick={() => setSelectedTable(null)}
-        >
-          <div
-            className="glass rounded-2xl p-6 max-w-md w-full mx-4"
-            onClick={e => e.stopPropagation()}
-          >
-            <h4 className="serif text-2xl text-[#4a3a5c] mb-3">Mesa {selectedTable}</h4>
-            <ul className="space-y-2 max-h-64 overflow-auto">
-              {tables.find(t => t.letter === selectedTable)?.guests.map(g => (
-                <li key={g.id} className="flex justify-between items-center border-b border-[#E0BBE4]/20 py-1">
-                  <span className="text-[#4a3a5c]">{g.nombre}</span>
-                  <span className="text-xs text-[#B2AC88]">{g.rsvp ? "✅ Confirmado" : "⏳ Pendiente"}</span>
-                </li>
-              ))}
-            </ul>
-            <button
-              onClick={() => setSelectedTable(null)}
-              className="mt-4 w-full py-2 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/40 transition"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-      )}
+{/* Modal con mayor contraste */}
+{selectedTable && (
+  <div
+    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+    onClick={() => setSelectedTable(null)}
+  >
+    <div
+      className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl border border-[#E0BBE4]/30"
+      onClick={e => e.stopPropagation()}
+    >
+      <h4 className="serif text-2xl text-[#4a3a5c] mb-3">Mesa {selectedTable}</h4>
+      <ul className="space-y-2 max-h-64 overflow-auto">
+        {tables.find(t => t.letter === selectedTable)?.guests.map(g => (
+          <li key={g.id} className="flex justify-between items-center border-b border-gray-200 py-2">
+            <span className="text-gray-800 font-medium">{g.nombre}</span>
+            <span className="text-xs text-[#B2AC88]">{g.rsvp ? "✅ Confirmado" : "⏳ Pendiente"}</span>
+          </li>
+        ))}
+      </ul>
+      <button
+        onClick={() => setSelectedTable(null)}
+        className="mt-4 w-full py-2 rounded-full bg-[#E0BBE4]/30 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/50 transition font-medium"
+      >
+        Cerrar
+      </button>
+    </div>
+  </div>
+)}
     </div>
   );
 }
