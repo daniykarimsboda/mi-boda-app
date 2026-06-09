@@ -70,14 +70,6 @@ const INIT = {
       ],
       visionItems:[{id:"v5",url:"https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400",label:"Estilo editorial"}]},
   ],
-  guests:[
-    {id:"g1",name:"María García",rsvp:"confirmado",allergies:"Ninguna",table:"1"},
-    {id:"g2",name:"Carlos López",rsvp:"pendiente",allergies:"Gluten",table:"2"},
-    {id:"g3",name:"Ana Martínez",rsvp:"confirmado",allergies:"Mariscos",table:"1"},
-    {id:"g4",name:"Pedro Sánchez",rsvp:"rechazado",allergies:"Ninguna",table:""},
-    {id:"g5",name:"Laura Gómez",rsvp:"confirmado",allergies:"Lácteos",table:"3"},
-    {id:"g6",name:"Roberto Torres",rsvp:"pendiente",allergies:"Ninguna",table:"2"},
-  ],
   timeline:[
     {id:"tl1",time:"07:00",activity:"Despertar & Desayuno en suite",icon:"Star"},
     {id:"tl2",time:"08:00",activity:"Maquillaje y peinado (novia)",icon:"Sparkles"},
@@ -165,11 +157,23 @@ export default function App() {
   const [tab,  setTab]       = useState("dashboard");
   const [sidebarOpen, setSO] = useState(true);
   const [exCat, setExCat]    = useState(null);
-  const [gs, setGs]          = useState("");
-  const [gf, setGf]          = useState("todos");
   const [editD, setEditD]    = useState(false);
   const [toast, setToast]    = useState(false);
-  const [showSheetsModule, setShowSheetsModule] = useState(false);
+  const [guestStats, setGuestStats] = useState({ total:0, confirmados:0, pendientes:0, rechazados:0 });
+
+  // Cargar estadísticas de invitados desde Supabase (tabla guests)
+  const loadGuestStats = async () => {
+    try {
+      const { data: guests, error } = await sb.from("guests").select("rsvp");
+      if (!error && guests) {
+        const total = guests.length;
+        const confirmados = guests.filter(g => g.rsvp === true).length;
+        const pendientes = guests.filter(g => g.rsvp === false).length;
+        const rechazados = 0; // asumiendo que no hay rechazados en este esquema
+        setGuestStats({ total, confirmados, pendientes, rechazados });
+      }
+    } catch (e) { console.warn("No se pudieron cargar estadísticas de invitados", e); }
+  };
 
   useEffect(() => {
     (async () => {
@@ -185,6 +189,7 @@ export default function App() {
           setData(INIT);
         }
         setSync("idle");
+        await loadGuestStats();
       } catch { setSync("error"); }
     })();
   }, []);
@@ -201,6 +206,7 @@ export default function App() {
             setTimeout(() => setSync("idle"), 2500);
           }
         })
+      .on("postgres_changes", { event:"*", schema:"public", table:"guests" }, () => loadGuestStats())
       .subscribe();
     return () => sb.removeChannel(channel);
   }, []);
@@ -245,9 +251,9 @@ export default function App() {
       `Fecha: ${data.weddingDate} | Días: ${d}`,"",
       `PRESUPUESTO: ${fmt(data.budget)} | Gastado: ${fmt(spent)}`,"",
       "CATEGORÍAS:",...data.categories.map(c=>`• ${c.label}: ${c.tasks.filter(t=>t.done).length}/${c.tasks.length} | ${fmt(c.budgetReal)}`),
-      "","INVITADOS:",
-      `Confirmados: ${data.guests.filter(g=>g.rsvp==="confirmado").length}`,
-      `Pendientes: ${data.guests.filter(g=>g.rsvp==="pendiente").length}`,
+      "","INVITADOS (desde Google Sheets):",
+      `Confirmados: ${guestStats.confirmados}`,
+      `Pendientes: ${guestStats.pendientes}`,
       "","TIMELINE:",...data.timeline.map(t=>`  ${t.time}  ${t.activity}`),
     ].join("\n");
     const a = document.createElement("a");
@@ -334,12 +340,13 @@ export default function App() {
             </div>
             <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
               <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:10}}>Invitados</div>
-              <div className="serif" style={{fontSize:44,color:"#4a3a5c",fontWeight:300,marginBottom:14}}>{data.guests.length}</div>
+              <div className="serif" style={{fontSize:44,color:"#4a3a5c",fontWeight:300,marginBottom:14}}>{guestStats.total}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                {[{l:"Conf.",v:data.guests.filter(g=>g.rsvp==="confirmado").length,c:"#B2AC88"},{l:"Pend.",v:data.guests.filter(g=>g.rsvp==="pendiente").length,c:"#FFD580"},{l:"Rech.",v:data.guests.filter(g=>g.rsvp==="rechazado").length,c:"#F4A5A5"}].map(s=>(
-                  <div key={s.l} style={{background:s.c+"33",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{s.v}</div><div style={{fontSize:10,color:"#888"}}>{s.l}</div></div>
-                ))}
+                <div style={{background:"#B2AC8833",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{guestStats.confirmados}</div><div style={{fontSize:10,color:"#888"}}>Conf.</div></div>
+                <div style={{background:"#FFD58033",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{guestStats.pendientes}</div><div style={{fontSize:10,color:"#888"}}>Pend.</div></div>
+                <div style={{background:"#F4A5A533",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{guestStats.rechazados}</div><div style={{fontSize:10,color:"#888"}}>Rech.</div></div>
               </div>
+              <div style={{fontSize:10,color:"#aaa",marginTop:12,textAlign:"center"}}>Datos desde Google Sheets</div>
             </div>
             <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
               <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:12}}>Colaboración ☁</div>
@@ -454,59 +461,20 @@ export default function App() {
           </div>
         </div>}
 
-        {/* INVITADOS */}
+        {/* INVITADOS - AHORA USA EL MÓDULO COMPLETO DE GOOGLE SHEETS */}
         {tab==="invitados" && <div className="fade">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
             <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Invitados <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
             <SyncBadge status={sync}/>
           </div>
-          <div className="glass" style={{borderRadius:16,padding:"14px 20px",marginBottom:14,display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-            <Search size={16} color="#ccc"/>
-            <input placeholder="Buscar invitado..." value={gs} onChange={e=>setGs(e.target.value)} style={{flex:1,minWidth:120,border:"none",background:"transparent",fontSize:14,color:"#4a3a5c"}}/>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-              {["todos","confirmado","pendiente","rechazado"].map(f=>(
-                <button key={f} onClick={()=>setGf(f)} style={{padding:"5px 13px",borderRadius:20,border:"1px solid",fontSize:12,cursor:"pointer",borderColor:gf===f?"#E0BBE4":"transparent",background:gf===f?"#E0BBE420":"transparent",color:gf===f?"#7b4f8a":"#aaa"}}>{f}</button>
-              ))}
-            </div>
-          </div>
-          <div className="glass" style={{borderRadius:20,overflow:"hidden"}}>
-            <table style={{width:"100%",borderCollapse:"collapse"}}>
-              <thead><tr style={{background:"rgba(224,187,228,.1)",borderBottom:"1px solid rgba(224,187,228,.25)"}}>
-                {["Nombre","RSVP","Alergias","Mesa",""].map(h=><th key={h} style={{padding:"14px 16px",textAlign:"left",fontSize:11,color:"#9b8ab4",fontWeight:500,textTransform:"uppercase",letterSpacing:1.1}}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {data.guests.filter(g=>(gf==="todos"||g.rsvp===gf)&&g.name.toLowerCase().includes(gs.toLowerCase())).map((g,i)=>(
-                  <tr key={g.id} style={{borderBottom:"1px solid rgba(224,187,228,.1)",background:i%2===0?"transparent":"rgba(255,255,255,.35)"}}>
-                    <td style={{padding:"12px 16px",fontSize:14,color:"#4a3a5c",fontWeight:500}}>{g.name}</td>
-                    <td style={{padding:"12px 16px"}}>
-                      <select value={g.rsvp} onChange={e=>upd(x=>{x.guests.find(y=>y.id===g.id).rsvp=e.target.value;})} style={{padding:"5px 11px",borderRadius:20,border:"1px solid",fontSize:12,cursor:"pointer",borderColor:g.rsvp==="confirmado"?"#B2AC88":g.rsvp==="pendiente"?"#FFD580":"#F4A5A5",background:g.rsvp==="confirmado"?"#B2AC8820":g.rsvp==="pendiente"?"#FFD58020":"#F4A5A520",color:g.rsvp==="confirmado"?"#5a6a45":g.rsvp==="pendiente"?"#8a7230":"#c05a5a"}}>
-                        <option value="confirmado">confirmado</option><option value="pendiente">pendiente</option><option value="rechazado">rechazado</option>
-                      </select>
-                    </td>
-                    <td style={{padding:"12px 16px"}}><input value={g.allergies} onChange={e=>upd(x=>{x.guests.find(y=>y.id===g.id).allergies=e.target.value;})} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #eee",background:"white",fontSize:13,width:130,color:"#555"}}/></td>
-                    <td style={{padding:"12px 16px"}}><input value={g.table} onChange={e=>upd(x=>{x.guests.find(y=>y.id===g.id).table=e.target.value;})} style={{padding:"5px 10px",borderRadius:8,border:"1px solid #eee",background:"white",fontSize:13,width:60,textAlign:"center",color:"#555"}}/></td>
-                    <td style={{padding:"12px 16px"}}><button onClick={()=>upd(x=>{x.guests=x.guests.filter(y=>y.id!==g.id);})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd"}}><Trash2 size={14}/></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <GuestForm upd={upd}/>
-          </div>
-          <div className="mt-8 text-center">
-            <button onClick={() => setShowSheetsModule(!showSheetsModule)} className="text-sm text-[#7b4f8a] underline">
-              {showSheetsModule ? "Ocultar" : "Mostrar"} gestión avanzada desde Google Sheets
-            </button>
-          </div>
-          {showSheetsModule && (
-            <ErrorBoundary>
-              <Suspense fallback={<div className="text-center py-8">Cargando módulo de invitados...</div>}>
-                <GuestManager />
-              </Suspense>
-            </ErrorBoundary>
-          )}
+          <ErrorBoundary>
+            <Suspense fallback={<div className="text-center py-8">Cargando módulo de invitados y mesas...</div>}>
+              <GuestManager />
+            </Suspense>
+          </ErrorBoundary>
         </div>}
 
-        {/* MESAS */}
+        {/* MESAS - DASHBOARD VISUAL */}
         {tab==="mesas" && <div className="fade">
           <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:26, flexWrap:"wrap", gap:12}}>
             <div className="serif" style={{fontSize:38, color:"#4a3a5c", fontWeight:300}}>Mesas <span style={{fontStyle:"italic", color:"#B2AC88"}}>✦</span></div>
@@ -588,17 +556,6 @@ function VisionForm({catId,upd,color}){
       <button onClick={ok} style={{flex:1,padding:"8px",borderRadius:9,background:color,border:"none",cursor:"pointer",color:"white",fontSize:13,fontWeight:500}}>Agregar</button>
       <button onClick={()=>setOpen(false)} style={{padding:"8px 13px",borderRadius:9,background:"#f5f5f5",border:"none",cursor:"pointer",fontSize:13}}>Cancelar</button>
     </div>
-  </div>;
-}
-
-function GuestForm({upd}){
-  const [name,setName]=useState("");const [allergies,setA]=useState("");const [table,setT]=useState("");
-  const ok=()=>{if(!name.trim())return;upd(x=>{x.guests.push({id:"g"+Date.now(),name,rsvp:"pendiente",allergies:allergies||"Ninguna",table});});setName("");setA("");setT("");};
-  return<div style={{padding:"13px 16px",borderTop:"1px solid rgba(224,187,228,.2)",display:"flex",gap:10,alignItems:"center",background:"rgba(255,255,255,.45)",flexWrap:"wrap"}}>
-    <input placeholder="Nombre completo..." value={name} onChange={e=>setName(e.target.value)} style={{flex:2,minWidth:140,padding:"8px 13px",borderRadius:11,border:"1px solid rgba(224,187,228,.3)",fontSize:13,background:"white"}}/>
-    <input placeholder="Alergias" value={allergies} onChange={e=>setA(e.target.value)} style={{flex:1,minWidth:100,padding:"8px 13px",borderRadius:11,border:"1px solid rgba(224,187,228,.3)",fontSize:13,background:"white"}}/>
-    <input placeholder="Mesa" value={table} onChange={e=>setT(e.target.value)} style={{width:72,padding:"8px 13px",borderRadius:11,border:"1px solid rgba(224,187,228,.3)",fontSize:13,background:"white",textAlign:"center"}}/>
-    <button onClick={ok} style={{padding:"9px 18px",borderRadius:11,background:"#E0BBE4",border:"none",cursor:"pointer",color:"white",fontSize:13,fontWeight:500,display:"flex",alignItems:"center",gap:6}}><Plus size={14}/> Agregar</button>
   </div>;
 }
 
