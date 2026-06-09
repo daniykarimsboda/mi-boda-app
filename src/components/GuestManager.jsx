@@ -85,7 +85,7 @@ export default function GuestManager() {
     }
   };
 
- const syncWithSheets = async () => {
+const syncWithSheets = async () => {
   setSyncing(true);
   setError(null);
   try {
@@ -96,18 +96,20 @@ export default function GuestManager() {
     
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     const text = await response.text();
+    console.log("CSV crudo (primeros 200 caracteres):", text.substring(0, 200));
+    
     const rows = parseCSV(text);
+    console.log("Filas parseadas (primeras 2):", rows.slice(0, 2));
     
     if (rows.length === 0) throw new Error("El CSV está vacío o no se pudo parsear");
 
-    // Normalizar nombres de columnas (quitar acentos, espacios, convertir a minúsculas)
+    // Normalizar nombres de columnas
     const normalizeKey = (key) => {
       return key.toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quitar acentos
-        .replace(/\s/g, ""); // quitar espacios
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s/g, "");
     };
 
-    // Mapear cada fila usando claves normalizadas
     const normalizedRows = rows.map(row => {
       const newRow = {};
       Object.keys(row).forEach(key => {
@@ -116,40 +118,50 @@ export default function GuestManager() {
       });
       return newRow;
     });
+    
+    console.log("Primera fila normalizada:", normalizedRows[0]);
 
-    // Buscar posibles nombres de columna para teléfono
+    // Detectar columna de teléfono
     const telefonoKey = Object.keys(normalizedRows[0]).find(k => 
       k === "telefono" || k === "teléfono" || k === "phone" || k === "celular"
     ) || "telefono";
+    
+    console.log("Clave de teléfono usada:", telefonoKey);
 
-    // Filtrar filas que tengan teléfono no vacío
+    // Filtrar filas con teléfono no vacío (después de limpiar)
     const validRows = normalizedRows.filter(row => {
       const tel = row[telefonoKey]?.trim();
       return tel && tel !== "";
     });
     
+    console.log(`Filas con teléfono válido: ${validRows.length} de ${normalizedRows.length}`);
+    
     if (validRows.length === 0) {
-      // Mostrar las primeras filas para depuración
-      console.log("Primera fila normalizada:", normalizedRows[0]);
-      throw new Error(`No se encontraron filas con teléfono válido. Columnas detectadas: ${Object.keys(normalizedRows[0] || {}).join(", ")}`);
+      // Mostrar detalles de la primera fila para depurar
+      const firstRow = normalizedRows[0];
+      const telValue = firstRow[telefonoKey];
+      throw new Error(
+        `No hay filas con teléfono válido. Columna '${telefonoKey}' tiene valor: "${telValue}". ` +
+        `Columnas: ${Object.keys(firstRow).join(", ")}. Revisa que los teléfonos estén escritos en la hoja.`
+      );
     }
 
     // Obtener datos existentes
     const { data: existing } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
     const existingMap = new Map(existing?.map(e => [e.telefono, e]) || []);
 
-    // Agrupar por teléfono
+    // Mapear columnas
+    const nombreKey = Object.keys(normalizedRows[0]).find(k => k === "nombre" || k === "name") || "nombre";
+    const categoriaKey = Object.keys(normalizedRows[0]).find(k => k === "categoria" || k === "category") || "categoria";
+    const prioridadKey = Object.keys(normalizedRows[0]).find(k => k === "prioridad" || k === "priority") || "prioridad";
+    const invitadoDeKey = Object.keys(normalizedRows[0]).find(k => k === "invitadode" || k === "invitado_de") || "invitadode";
+    const comentarioKey = Object.keys(normalizedRows[0]).find(k => k === "comentario" || k === "comment") || "comentario";
+
+    // Agrupar por teléfono (eliminar duplicados)
     const uniqueMap = new Map();
     for (const row of validRows) {
       const telefono = row[telefonoKey].trim();
       if (!uniqueMap.has(telefono)) {
-        // Buscar columna de nombre (puede variar)
-        const nombreKey = Object.keys(row).find(k => k === "nombre" || k === "name") || "nombre";
-        const categoriaKey = Object.keys(row).find(k => k === "categoria" || k === "category") || "categoria";
-        const prioridadKey = Object.keys(row).find(k => k === "prioridad" || k === "priority") || "prioridad";
-        const invitadoDeKey = Object.keys(row).find(k => k === "invitadode" || k === "invitado_de") || "invitadode";
-        const comentarioKey = Object.keys(row).find(k => k === "comentario" || k === "comment") || "comentario";
-
         uniqueMap.set(telefono, {
           telefono,
           nombre: row[nombreKey]?.trim() || "Sin nombre",
@@ -181,7 +193,7 @@ export default function GuestManager() {
     }
 
     if (errorCount > 0) {
-      throw new Error(`${errorCount} registros fallaron.`);
+      throw new Error(`${errorCount} registros fallaron. Revisa la consola.`);
     }
 
     await loadGuests();
