@@ -167,46 +167,58 @@ function Ring({ pct, color, sz=88, label, sub }) {
 
 function TaskDetailsForm({ task, catId, upd, color }) {
   const [open, setOpen] = useState(false);
-  const [details, setDetails] = useState(() => {
-    if (task.details && task.details.length > 0) {
-      const d = task.details[0];
-      return {
-        concepto: d.concepto || "",
-        caracteristica: d.caracteristica || "",
-        precioUnitario: d.precioUnitario === 0 ? "" : d.precioUnitario,
-        piezas: d.piezas || 1,
-        total: d.total || 0,
-        metodoPago: d.metodoPago || "",
-      };
-    }
-    return {
-      concepto: "",
-      caracteristica: "",
-      precioUnitario: "",
-      piezas: 1,
-      total: 0,
-      metodoPago: "",
-    };
+  const [formData, setFormData] = useState({
+    concepto: "",
+    caracteristica: "",
+    precioUnitario: "",
+    piezas: "1",
+    metodoPago: "",
+    total: 0,
   });
 
-  const updateDetail = (field, value) => {
-    let newDetails = { ...details, [field]: value };
-    if (field === "precioUnitario" || field === "piezas") {
-      const pu = field === "precioUnitario" ? parseFloat(value || 0) : parseFloat(details.precioUnitario || 0);
-      const pz = field === "piezas" ? parseInt(value, 10) : parseInt(details.piezas, 10);
-      newDetails.total = (isNaN(pu) ? 0 : pu) * (isNaN(pz) ? 1 : pz);
+  // Cargar datos existentes al abrir
+  useEffect(() => {
+    if (open && task.details && task.details.length > 0) {
+      const d = task.details[0];
+      setFormData({
+        concepto: d.concepto || "",
+        caracteristica: d.caracteristica || "",
+        precioUnitario: d.precioUnitario === 0 ? "" : d.precioUnitario.toString(),
+        piezas: d.piezas?.toString() || "1",
+        metodoPago: d.metodoPago || "",
+        total: d.total || 0,
+      });
+    } else if (open) {
+      setFormData({
+        concepto: "",
+        caracteristica: "",
+        precioUnitario: "",
+        piezas: "1",
+        metodoPago: "",
+        total: 0,
+      });
     }
-    setDetails(newDetails);
+  }, [open, task.details]);
+
+  // Recalcular total cuando cambien precio o piezas
+  useEffect(() => {
+    const pu = parseFloat(formData.precioUnitario) || 0;
+    const pz = parseInt(formData.piezas, 10) || 1;
+    setFormData(prev => ({ ...prev, total: pu * pz }));
+  }, [formData.precioUnitario, formData.piezas]);
+
+  const updateField = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const saveDetails = () => {
     const finalDetails = {
-      concepto: details.concepto,
-      caracteristica: details.caracteristica,
-      precioUnitario: parseFloat(details.precioUnitario) || 0,
-      piezas: parseInt(details.piezas, 10) || 1,
-      total: details.total,
-      metodoPago: details.metodoPago,
+      concepto: formData.concepto,
+      caracteristica: formData.caracteristica,
+      precioUnitario: parseFloat(formData.precioUnitario) || 0,
+      piezas: parseInt(formData.piezas, 10) || 1,
+      total: formData.total,
+      metodoPago: formData.metodoPago,
     };
     upd(x => {
       const cat = x.categories.find(c => c.id === catId);
@@ -214,7 +226,7 @@ function TaskDetailsForm({ task, catId, upd, color }) {
       if (!t.details) t.details = [];
       if (t.details.length === 0) t.details.push(finalDetails);
       else t.details[0] = finalDetails;
-      // Recalcular budgetReal
+      // Recalcular budgetReal de la categoría
       let real = 0;
       cat.tasks.forEach(tk => {
         if (tk.done && tk.details && tk.details.length > 0) {
@@ -244,32 +256,33 @@ function TaskDetailsForm({ task, catId, upd, color }) {
         <input
           type="text"
           placeholder="Concepto"
-          value={details.concepto}
-          onChange={e => updateDetail("concepto", e.target.value)}
+          value={formData.concepto}
+          onChange={e => updateField("concepto", e.target.value)}
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
         />
         <input
           type="text"
           placeholder="Característica"
-          value={details.caracteristica}
-          onChange={e => updateDetail("caracteristica", e.target.value)}
+          value={formData.caracteristica}
+          onChange={e => updateField("caracteristica", e.target.value)}
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
         />
         <input
           type="text"
           placeholder="Precio Unitario"
-          value={details.precioUnitario}
-          onChange={e => updateDetail("precioUnitario", e.target.value)}
+          value={formData.precioUnitario}
+          onChange={e => updateField("precioUnitario", e.target.value)}
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
         />
         <input
           type="text"
           placeholder="Piezas"
-          value={details.piezas}
+          value={formData.piezas}
           onChange={e => {
             let val = e.target.value;
+            // Permitir solo dígitos
             if (val === "" || /^\d+$/.test(val)) {
-              updateDetail("piezas", val === "" ? 1 : parseInt(val, 10));
+              updateField("piezas", val === "" ? "1" : val);
             }
           }}
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
@@ -277,12 +290,12 @@ function TaskDetailsForm({ task, catId, upd, color }) {
         <input
           type="text"
           placeholder="Método de Pago"
-          value={details.metodoPago}
-          onChange={e => updateDetail("metodoPago", e.target.value)}
+          value={formData.metodoPago}
+          onChange={e => updateField("metodoPago", e.target.value)}
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
         />
         <div className="flex items-center gap-2 text-sm font-medium">
-          Total: ${details.total.toLocaleString()}
+          Total: ${formData.total.toLocaleString()}
         </div>
       </div>
       <div className="flex justify-end gap-2">
