@@ -99,7 +99,7 @@ export default function GuestManager() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const text = await response.text();
     
-    // Parseo simple y robusto
+    // Parseo CSV
     const lines = text.split(/\r?\n/);
     const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim());
     const rows = [];
@@ -114,7 +114,7 @@ export default function GuestManager() {
     
     if (rows.length === 0) throw new Error("El CSV está vacío");
 
-    // Normalizar columnas (sin acentos)
+    // Normalizar columnas
     const normalizeKey = (key) => key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s/g, "");
     const firstRow = rows[0];
     const keys = Object.keys(firstRow);
@@ -127,8 +127,13 @@ export default function GuestManager() {
     const idxInvitadoDe = colIndex("invitadode");
     const idxComentario = colIndex("comentario");
     
-    // Preparar datos para insertar
-    const nuevosGuests = rows.map(row => {
+    // Obtener datos existentes para preservar rsvp, alergias, mesa
+    const { data: existingGuests } = await supabase.from("guests").select("nombre, rsvp, alergias, mesa");
+    const existingMap = new Map(existingGuests?.map(g => [g.nombre, g]) || []);
+    
+    // Preparar datos para upsert (usando nombre como clave)
+    const upsertData = rows.map(row => {
+      const nombre = idxNombre !== -1 ? (row[keys[idxNombre]] || "Sin nombre") : "Sin nombre";
       let telefono = idxTelefono !== -1 ? row[keys[idxTelefono]] : "";
       telefono = telefono && telefono.trim() !== "" ? telefono.trim() : null;
       
@@ -139,31 +144,32 @@ export default function GuestManager() {
       else if (prioridadNum === 3) prioridad = "Baja";
       else if (!["Alta","Media","Baja"].includes(prioridad)) prioridad = "Media";
       
+      const existing = existingMap.get(nombre);
+      
       return {
-        nombre: idxNombre !== -1 ? (row[keys[idxNombre]] || "Sin nombre") : "Sin nombre",
+        nombre: nombre,
         telefono: telefono,
         categoria: idxCategoria !== -1 ? (row[keys[idxCategoria]] || "") : "",
         prioridad: prioridad,
         invitado_de: idxInvitadoDe !== -1 ? (row[keys[idxInvitadoDe]] || "") : "",
         comentario: idxComentario !== -1 ? (row[keys[idxComentario]] || "") : "",
-        rsvp: false,
-        alergias: "",
-        mesa: null,
+        // Preservar datos existentes si ya estaban
+        rsvp: existing?.rsvp ?? false,
+        alergias: existing?.alergias ?? "",
+        mesa: existing?.mesa ?? null,
       };
     });
     
-    if (nuevosGuests.length === 0) throw new Error("No se generaron datos");
+    if (upsertData.length === 0) throw new Error("No hay datos para sincronizar");
     
-    // Vaciar la tabla antes de insertar (para evitar duplicados)
-    const { error: deleteError } = await supabase.from("guests").delete().neq("id", 0);
-    if (deleteError) console.warn("Error al limpiar tabla:", deleteError);
-    
-    // Insertar en lotes de 50
+    // Hacer upsert en lotes (sin borrar nada)
     let successCount = 0;
     const batchSize = 50;
-    for (let i = 0; i < nuevosGuests.length; i += batchSize) {
-      const batch = nuevosGuests.slice(i, i + batchSize);
-      const { error } = await supabase.from("guests").insert(batch);
+    for (let i = 0; i < upsertData.length; i += batchSize) {
+      const batch = upsertData.slice(i, i + batchSize);
+      const { error } = await supabase
+        .from("guests")
+        .upsert(batch, { onConflict: "nombre" }); // Usar nombre como clave de conflicto
       if (error) {
         console.error("Error en lote:", error);
       } else {
@@ -172,7 +178,7 @@ export default function GuestManager() {
     }
     
     await loadGuests();
-    alert(`✅ Sincronización completa: ${successCount} invitados cargados.`);
+    alert(`✅ Sincronización exitosa: ${successCount} invitados actualizados. Los datos de confirmación y mesas se conservaron.`);
   } catch (err) {
     console.error(err);
     setError("Error al sincronizar: " + err.message);
