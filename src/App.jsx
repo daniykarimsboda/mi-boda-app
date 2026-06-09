@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import {
   Heart, Users, Clock, Sparkles, Menu, X, ChevronDown, ChevronUp,
   Plus, Trash2, Check, Download, Share2, Edit2, Save, Search,
@@ -6,11 +6,11 @@ import {
   Cloud, CloudOff, Loader2
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
-import { Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import GuestManager from "./components/GuestManager";
 import TableConfig from "./components/TableConfig";
 import TableDashboard from "./components/TableDashboard";
+
 const SUPABASE_URL      = "https://gruszoneusbmhkmeogvn.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdydXN6b25ldXNibWhrbWVvZ3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODk1NDQsImV4cCI6MjA4OTg2NTU0NH0.Z_F4EIKj_sahMRNgywImTT6m5jMU1KhE6MWQ1oVLRpM";
 const ROW_ID = 1;
@@ -95,7 +95,6 @@ const INIT = {
   ]
 };
 
-// Garantiza que el estado siempre tenga la estructura correcta
 function safeState(raw) {
   if (raw && Array.isArray(raw.categories) && raw.categories.length > 0) return raw;
   return INIT;
@@ -228,7 +227,6 @@ export default function App() {
     });
   }, [debouncedPush]);
 
-  // Siempre seguros gracias a safeState
   const spent = data.categories.reduce((a,c) => a+c.budgetReal, 0);
   const estim = data.categories.reduce((a,c) => a+c.budgetEstimated, 0);
   const d     = daysUntil(data.weddingDate);
@@ -495,17 +493,33 @@ export default function App() {
             <GuestForm upd={upd}/>
           </div>
           <div className="mt-8 text-center">
-  <button onClick={() => setShowSheetsModule(!showSheetsModule)} className="text-sm text-[#7b4f8a] underline">
-    {showSheetsModule ? "Ocultar" : "Mostrar"} gestión avanzada desde Google Sheets
-  </button>
-</div>
-{showSheetsModule && (
-  <ErrorBoundary>
-    <Suspense fallback={<div className="text-center py-8">Cargando módulo de invitados...</div>}>
-      <GuestManager />
-    </Suspense>
-  </ErrorBoundary>
-)}
+            <button onClick={() => setShowSheetsModule(!showSheetsModule)} className="text-sm text-[#7b4f8a] underline">
+              {showSheetsModule ? "Ocultar" : "Mostrar"} gestión avanzada desde Google Sheets
+            </button>
+          </div>
+          {showSheetsModule && (
+            <ErrorBoundary>
+              <Suspense fallback={<div className="text-center py-8">Cargando módulo de invitados...</div>}>
+                <GuestManager />
+              </Suspense>
+            </ErrorBoundary>
+          )}
+        </div>}
+
+        {/* MESAS */}
+        {tab==="mesas" && <div className="fade">
+          <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:26, flexWrap:"wrap", gap:12}}>
+            <div className="serif" style={{fontSize:38, color:"#4a3a5c", fontWeight:300}}>Mesas <span style={{fontStyle:"italic", color:"#B2AC88"}}>✦</span></div>
+            <SyncBadge status={sync}/>
+          </div>
+          <div className="glass" style={{borderRadius:22, padding:"24px"}}>
+            <div className="mb-6"><TableConfig /></div>
+            <ErrorBoundary>
+              <Suspense fallback={<div className="text-center py-8">Cargando dashboard de mesas...</div>}>
+                <TableDashboard />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
         </div>}
 
         {/* TIMELINE */}
@@ -541,20 +555,9 @@ export default function App() {
     </div>
   );
 }
-{tab==="mesas" && <div className="fade">
-  <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:26, flexWrap:"wrap", gap:12}}>
-    <div className="serif" style={{fontSize:38, color:"#4a3a5c", fontWeight:300}}>Mesas <span style={{fontStyle:"italic", color:"#B2AC88"}}>✦</span></div>
-    <SyncBadge status={sync}/>
-  </div>
-  <div className="glass" style={{borderRadius:22, padding:"24px"}}>
-    <div className="mb-6"><TableConfig /></div>
-    <ErrorBoundary>
-      <Suspense fallback={<div className="text-center py-8">Cargando dashboard de mesas...</div>}>
-        <TableDashboard />
-      </Suspense>
-    </ErrorBoundary>
-  </div>
-</div>}
+
+// ==================== Componentes auxiliares ====================
+
 function TaskForm({catId,upd,color}){
   const [open,setOpen]=useState(false);const [text,setText]=useState("");const [date,setDate]=useState("");const [prio,setPrio]=useState("media");
   const ok=()=>{if(!text.trim())return;upd(x=>{x.categories.find(c=>c.id===catId).tasks.push({id:"t"+Date.now(),text,done:false,date,priority:prio});});setText("");setDate("");setOpen(false);};
