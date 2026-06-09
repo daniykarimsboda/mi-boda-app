@@ -3,18 +3,29 @@ import {
   Heart, Users, Clock, Sparkles, Menu, X, ChevronDown, ChevronUp,
   Plus, Trash2, Check, Download, Share2, Edit2, Save, Search,
   Flower, Music, Shirt, UtensilsCrossed, Camera, Car, Star, Gift,
-  Cloud, CloudOff, Loader2
+  Cloud, CloudOff, Loader2, FileText, DollarSign
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
 import GuestManager from "./components/GuestManager";
 import TableConfig from "./components/TableConfig";
 import TableDashboard from "./components/TableDashboard";
+import FinancialBreakdown from "./components/FinancialBreakdown";
 
 const SUPABASE_URL      = "https://gruszoneusbmhkmeogvn.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdydXN6b25ldXNibWhrbWVvZ3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODk1NDQsImV4cCI6MjA4OTg2NTU0NH0.Z_F4EIKj_sahMRNgywImTT6m5jMU1KhE6MWQ1oVLRpM";
 const ROW_ID = 1;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Función para inicializar detalles en tareas que no los tengan
+const initTaskDetails = (categories) => {
+  categories.forEach(cat => {
+    cat.tasks.forEach(task => {
+      if (!task.details) task.details = [];
+    });
+  });
+  return categories;
+};
 
 const INIT = {
   weddingDate: "2027-06-12",
@@ -23,10 +34,10 @@ const INIT = {
   categories: [
     { id:"banquete", icon:"UtensilsCrossed", label:"Banquete", color:"#E0BBE4", budgetEstimated:60000, budgetReal:42000,
       tasks:[
-        {id:"t1",text:"Cita de degustación con el chef",done:false,date:"2026-08-15",priority:"alta"},
-        {id:"t2",text:"Definir menú vegetariano y vegano",done:false,date:"2026-09-01",priority:"media"},
-        {id:"t3",text:"Confirmar mesas y sillas",done:true,date:"2026-07-20",priority:"alta"},
-        {id:"t4",text:"Opciones sin gluten",done:false,date:"2026-09-15",priority:"baja"},
+        {id:"t1",text:"Cita de degustación con el chef",done:false,date:"2026-08-15",priority:"alta", details:[]},
+        {id:"t2",text:"Definir menú vegetariano y vegano",done:false,date:"2026-09-01",priority:"media", details:[]},
+        {id:"t3",text:"Confirmar mesas y sillas",done:true,date:"2026-07-20",priority:"alta", details:[]},
+        {id:"t4",text:"Opciones sin gluten",done:false,date:"2026-09-15",priority:"baja", details:[]},
       ],
       visionItems:[
         {id:"v1",url:"https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=400",label:"Decoración mesa"},
@@ -34,39 +45,39 @@ const INIT = {
       ]},
     { id:"flores", icon:"Flower", label:"Flores & Decoración", color:"#C8E6C9", budgetEstimated:30000, budgetReal:18500,
       tasks:[
-        {id:"t5",text:"Reunión con florista",done:true,date:"2026-07-10",priority:"alta"},
-        {id:"t6",text:"Elegir flores de temporada",done:false,date:"2026-08-01",priority:"media"},
-        {id:"t7",text:"Presupuesto centros de mesa",done:false,date:"2026-08-20",priority:"alta"},
+        {id:"t5",text:"Reunión con florista",done:true,date:"2026-07-10",priority:"alta", details:[]},
+        {id:"t6",text:"Elegir flores de temporada",done:false,date:"2026-08-01",priority:"media", details:[]},
+        {id:"t7",text:"Presupuesto centros de mesa",done:false,date:"2026-08-20",priority:"alta", details:[]},
       ],
       visionItems:[{id:"v3",url:"https://images.unsplash.com/photo-1490750967868-88df5691cc51?w=400",label:"Ramo de novia"}]},
     { id:"musica", icon:"Music", label:"Música & Entretenimiento", color:"#B3E5FC", budgetEstimated:25000, budgetReal:25000,
       tasks:[
-        {id:"t8",text:"Contratar DJ",done:true,date:"2026-06-30",priority:"alta"},
-        {id:"t9",text:"Playlist ceremonia",done:false,date:"2026-10-01",priority:"media"},
-        {id:"t10",text:"Verificar sonido en venue",done:false,date:"2026-11-01",priority:"alta"},
+        {id:"t8",text:"Contratar DJ",done:true,date:"2026-06-30",priority:"alta", details:[]},
+        {id:"t9",text:"Playlist ceremonia",done:false,date:"2026-10-01",priority:"media", details:[]},
+        {id:"t10",text:"Verificar sonido en venue",done:false,date:"2026-11-01",priority:"alta", details:[]},
       ],
       visionItems:[]},
     { id:"vestuario", icon:"Shirt", label:"Vestuario", color:"#FFE0B2", budgetEstimated:35000, budgetReal:28000,
       tasks:[
-        {id:"t11",text:"Prueba de maquillaje natural (miel/coco)",done:false,date:"2026-09-20",priority:"alta"},
-        {id:"t12",text:"Kit emergencia con rodillo de pelusa",done:false,date:"2026-11-01",priority:"media"},
-        {id:"t13",text:"Segunda prueba de vestido",done:true,date:"2026-08-05",priority:"alta"},
-        {id:"t14",text:"Traje del novio y padrinos",done:false,date:"2026-09-01",priority:"media"},
+        {id:"t11",text:"Prueba de maquillaje natural (miel/coco)",done:false,date:"2026-09-20",priority:"alta", details:[]},
+        {id:"t12",text:"Kit emergencia con rodillo de pelusa",done:false,date:"2026-11-01",priority:"media", details:[]},
+        {id:"t13",text:"Segunda prueba de vestido",done:true,date:"2026-08-05",priority:"alta", details:[]},
+        {id:"t14",text:"Traje del novio y padrinos",done:false,date:"2026-09-01",priority:"media", details:[]},
       ],
       visionItems:[{id:"v4",url:"https://images.unsplash.com/photo-1519741497674-611481863552?w=400",label:"Vestido de novia"}]},
     { id:"logistica", icon:"Car", label:"Logística & Venue", color:"#F8BBD9", budgetEstimated:20000, budgetReal:15000,
       tasks:[
-        {id:"t15",text:"Zona de descanso privada (Recarga)",done:false,date:"2026-10-15",priority:"media"},
-        {id:"t16",text:"Transportadoras para mascotas",done:false,date:"2026-11-20",priority:"baja"},
-        {id:"t17",text:"Transporte invitados foráneos",done:false,date:"2026-10-01",priority:"alta"},
-        {id:"t18",text:"Confirmar horario con venue",done:true,date:"2026-07-15",priority:"alta"},
+        {id:"t15",text:"Zona de descanso privada (Recarga)",done:false,date:"2026-10-15",priority:"media", details:[]},
+        {id:"t16",text:"Transportadoras para mascotas",done:false,date:"2026-11-20",priority:"baja", details:[]},
+        {id:"t17",text:"Transporte invitados foráneos",done:false,date:"2026-10-01",priority:"alta", details:[]},
+        {id:"t18",text:"Confirmar horario con venue",done:true,date:"2026-07-15",priority:"alta", details:[]},
       ],
       visionItems:[]},
     { id:"foto", icon:"Camera", label:"Fotografía & Video", color:"#E1BEE7", budgetEstimated:30000, budgetReal:30000,
       tasks:[
-        {id:"t19",text:"Sesión pre-boda (e-session)",done:true,date:"2026-08-20",priority:"alta"},
-        {id:"t20",text:"Lista fotos con familia",done:false,date:"2026-11-15",priority:"media"},
-        {id:"t21",text:"Fotógrafo segundo día",done:false,date:"2026-10-01",priority:"baja"},
+        {id:"t19",text:"Sesión pre-boda (e-session)",done:true,date:"2026-08-20",priority:"alta", details:[]},
+        {id:"t20",text:"Lista fotos con familia",done:false,date:"2026-11-15",priority:"media", details:[]},
+        {id:"t21",text:"Fotógrafo segundo día",done:false,date:"2026-10-01",priority:"baja", details:[]},
       ],
       visionItems:[{id:"v5",url:"https://images.unsplash.com/photo-1606800052052-a08af7148866?w=400",label:"Estilo editorial"}]},
   ],
@@ -88,8 +99,11 @@ const INIT = {
 };
 
 function safeState(raw) {
-  if (raw && Array.isArray(raw.categories) && raw.categories.length > 0) return raw;
-  return INIT;
+  if (raw && Array.isArray(raw.categories) && raw.categories.length > 0) {
+    const withDetails = initTaskDetails(raw.categories);
+    return { ...raw, categories: withDetails };
+  }
+  return initTaskDetails(INIT.categories);
 }
 
 const IconMap = { UtensilsCrossed, Flower, Music, Shirt, Car, Camera, Heart, Sparkles, Star, Gift, Users };
@@ -112,7 +126,7 @@ const CSS = `
   @keyframes fi{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
   @keyframes sp{from{transform:rotate(0);}to{transform:rotate(360deg);}}
   .spin{animation:sp 1s linear infinite;display:inline-flex;}
-  input:focus,select:focus{outline:none;border-color:#E0BBE4!important;box-shadow:0 0 0 3px rgba(224,187,228,.2);}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:#E0BBE4!important;box-shadow:0 0 0 3px rgba(224,187,228,.2);}
 `;
 
 function SyncBadge({ status }) {
@@ -151,6 +165,72 @@ function Ring({ pct, color, sz=88, label, sub }) {
   );
 }
 
+// Componente para detalles de tarea (inline)
+function TaskDetailsForm({ task, catId, upd, color }) {
+  const [open, setOpen] = useState(false);
+  const [details, setDetails] = useState(task.details && task.details.length > 0 ? task.details[0] : {
+    concepto: "", caracteristica: "", precioUnitario: 0, piezas: 1, total: 0, metodoPago: ""
+  });
+
+  const updateDetail = (field, value) => {
+    const newDetails = { ...details, [field]: value };
+    if (field === "precioUnitario" || field === "piezas") {
+      const pu = field === "precioUnitario" ? parseFloat(value) : details.precioUnitario;
+      const pz = field === "piezas" ? parseInt(value) : details.piezas;
+      newDetails.total = (pu || 0) * (pz || 0);
+    }
+    setDetails(newDetails);
+  };
+
+  const saveDetails = () => {
+    upd(x => {
+      const cat = x.categories.find(c => c.id === catId);
+      const t = cat.tasks.find(t => t.id === task.id);
+      if (!t.details) t.details = [];
+      if (t.details.length === 0) t.details.push(details);
+      else t.details[0] = details;
+      // Recalcular budgetReal de la categoría (suma de totales de tareas done con detalles)
+      let real = 0;
+      cat.tasks.forEach(tk => {
+        if (tk.done && tk.details && tk.details.length > 0) {
+          real += tk.details.reduce((sum, d) => sum + (d.total || 0), 0);
+        }
+      });
+      cat.budgetReal = real;
+    });
+    setOpen(false);
+  };
+
+  if (!open) {
+    const hasDetails = task.details && task.details.length > 0;
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="ml-2 text-xs px-2 py-1 rounded-full bg-white/40 text-[#7b4f8a] hover:bg-[#E0BBE4]/30 transition"
+      >
+        {hasDetails ? "✏️ Editar detalles" : "📋 Agregar detalles"}
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-2 p-3 rounded-xl bg-white/50 border border-[#E0BBE4]/30 space-y-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <input type="text" placeholder="Concepto" value={details.concepto} onChange={e => updateDetail("concepto", e.target.value)} className="px-2 py-1 rounded-lg border border-gray-200 text-sm" />
+        <input type="text" placeholder="Característica" value={details.caracteristica} onChange={e => updateDetail("caracteristica", e.target.value)} className="px-2 py-1 rounded-lg border border-gray-200 text-sm" />
+        <input type="number" placeholder="Precio Unitario" value={details.precioUnitario} onChange={e => updateDetail("precioUnitario", parseFloat(e.target.value) || 0)} className="px-2 py-1 rounded-lg border border-gray-200 text-sm" />
+        <input type="number" placeholder="Piezas" value={details.piezas} onChange={e => updateDetail("piezas", parseInt(e.target.value) || 1)} className="px-2 py-1 rounded-lg border border-gray-200 text-sm" />
+        <input type="text" placeholder="Método de Pago" value={details.metodoPago} onChange={e => updateDetail("metodoPago", e.target.value)} className="px-2 py-1 rounded-lg border border-gray-200 text-sm" />
+        <div className="flex items-center gap-2 text-sm font-medium">Total: ${details.total.toLocaleString()}</div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <button onClick={() => setOpen(false)} className="px-3 py-1 rounded-full bg-gray-200 text-gray-700 text-sm">Cancelar</button>
+        <button onClick={saveDetails} className="px-3 py-1 rounded-full bg-[#E0BBE4] text-white text-sm">Guardar detalles</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [data, setData]      = useState(() => { try { return safeState(JSON.parse(localStorage.getItem("wos5"))); } catch { return INIT; } });
   const [sync, setSync]      = useState("loading");
@@ -161,7 +241,6 @@ export default function App() {
   const [toast, setToast]    = useState(false);
   const [guestStats, setGuestStats] = useState({ total:0, confirmados:0, pendientes:0, rechazados:0 });
 
-  // Cargar estadísticas de invitados desde Supabase (tabla guests)
   const loadGuestStats = async () => {
     try {
       const { data: guests, error } = await sb.from("guests").select("rsvp");
@@ -169,10 +248,9 @@ export default function App() {
         const total = guests.length;
         const confirmados = guests.filter(g => g.rsvp === true).length;
         const pendientes = guests.filter(g => g.rsvp === false).length;
-        const rechazados = 0; // asumiendo que no hay rechazados en este esquema
-        setGuestStats({ total, confirmados, pendientes, rechazados });
+        setGuestStats({ total, confirmados, pendientes, rechazados:0 });
       }
-    } catch (e) { console.warn("No se pudieron cargar estadísticas de invitados", e); }
+    } catch (e) { console.warn(e); }
   };
 
   useEffect(() => {
@@ -233,8 +311,8 @@ export default function App() {
     });
   }, [debouncedPush]);
 
-  const spent = data.categories.reduce((a,c) => a+c.budgetReal, 0);
-  const estim = data.categories.reduce((a,c) => a+c.budgetEstimated, 0);
+  const spent = data.categories.reduce((a,c) => a + (c.budgetReal || 0), 0);
+  const estim = data.categories.reduce((a,c) => a + (c.budgetEstimated || 0), 0);
   const d     = daysUntil(data.weddingDate);
   const cats  = data.categories.map(c => ({
     ...c, pct: c.tasks.length ? Math.round(c.tasks.filter(t=>t.done).length/c.tasks.length*100) : 0
@@ -266,6 +344,7 @@ export default function App() {
     {id:"categorias",l:"Categorías", I:Sparkles},
     {id:"invitados", l:"Invitados",  I:Users},
     {id:"mesas",     l:"Mesas",      I:Users},
+    {id:"finanzas",  l:"Finanzas",   I:DollarSign},
     {id:"timeline",  l:"Día B",      I:Clock},
   ];
 
@@ -274,7 +353,7 @@ export default function App() {
       <style>{CSS}</style>
       {toast && <div style={{position:"fixed",top:20,right:20,zIndex:999,background:"#7b4f8a",color:"white",padding:"12px 20px",borderRadius:14,fontSize:13,boxShadow:"0 8px 32px rgba(123,79,138,.35)"}}>✓ Link copiado!</div>}
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR - mismo código que tenías, solo agrego la pestaña Finanzas */}
       <div style={{width:sidebarOpen?248:72,transition:"width .3s",flexShrink:0,background:"rgba(255,255,255,.78)",backdropFilter:"blur(28px)",borderRight:"1px solid rgba(224,187,228,.3)",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh",zIndex:50}}>
         <div style={{padding:"22px 18px 16px",borderBottom:"1px solid rgba(224,187,228,.2)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           {sidebarOpen && <div><div className="serif" style={{fontSize:22,color:"#4a3a5c",fontWeight:300,lineHeight:1.1}}>Wedding</div><div className="serif" style={{fontSize:22,color:"#B2AC88",fontStyle:"italic"}}>OS ✦</div></div>}
@@ -301,7 +380,7 @@ export default function App() {
       {/* MAIN */}
       <div style={{flex:1,overflow:"auto",padding:"32px 28px"}}>
 
-        {/* DASHBOARD */}
+        {/* DASHBOARD (sin cambios) */}
         {tab==="dashboard" && <div className="fade">
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:28,flexWrap:"wrap",gap:12}}>
             <div>
@@ -378,7 +457,7 @@ export default function App() {
           </div>
         </div>}
 
-        {/* CATEGORÍAS */}
+        {/* CATEGORÍAS - AQUÍ SE AGREGAN LOS DETALLES Y EL GASTO REAL AUTOMÁTICO */}
         {tab==="categorias" && <div className="fade">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
             <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Categorías <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
@@ -407,18 +486,33 @@ export default function App() {
                     <div style={{fontSize:12,fontWeight:500,color:"#9b8ab4",marginBottom:12,textTransform:"uppercase",letterSpacing:1.2}}>Checklist</div>
                     <div style={{display:"flex",flexDirection:"column",gap:8}}>
                       {cat.tasks.map(tk=>(
-                        <div key={tk.id} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:12,background:tk.done?"#B2AC8812":"rgba(255,255,255,.55)",border:"1px solid rgba(224,187,228,.2)"}}>
-                          <button onClick={()=>upd(x=>{x.categories.find(c=>c.id===cat.id).tasks.find(t=>t.id===tk.id).done^=true;})} style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${tk.done?"#B2AC88":"#ddd"}`,background:tk.done?"#B2AC88":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
-                            {tk.done&&<Check size={12} color="white" strokeWidth={3}/>}
-                          </button>
-                          <div style={{flex:1,minWidth:0}}>
-                            <div style={{fontSize:13,color:tk.done?"#bbb":"#4a3a5c",textDecoration:tk.done?"line-through":"none"}}>{tk.text}</div>
-                            <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
-                              <span style={{fontSize:11,color:"#ccc"}}>{tk.date}</span>
-                              <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:tk.priority==="alta"?"#F4A5A530":tk.priority==="media"?"#FFD58030":"#B2AC8830",color:tk.priority==="alta"?"#c05a5a":tk.priority==="media"?"#8a7230":"#5a6a45"}}>{tk.priority}</span>
+                        <div key={tk.id} style={{padding:"10px 12px",borderRadius:12,background:tk.done?"#B2AC8812":"rgba(255,255,255,.55)",border:"1px solid rgba(224,187,228,.2)"}}>
+                          <div className="flex items-start gap-2">
+                            <button onClick={()=>upd(x=>{
+                              const c = x.categories.find(c=>c.id===cat.id);
+                              const t = c.tasks.find(t=>t.id===tk.id);
+                              t.done = !t.done;
+                              // Recalcular budgetReal de la categoría
+                              let real = 0;
+                              c.tasks.forEach(task => {
+                                if (task.done && task.details && task.details.length > 0) {
+                                  real += task.details.reduce((sum, d) => sum + (d.total || 0), 0);
+                                }
+                              });
+                              c.budgetReal = real;
+                            })} style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${tk.done?"#B2AC88":"#ddd"}`,background:tk.done?"#B2AC88":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                              {tk.done&&<Check size={12} color="white" strokeWidth={3}/>}
+                            </button>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:13,color:tk.done?"#bbb":"#4a3a5c",textDecoration:tk.done?"line-through":"none"}}>{tk.text}</div>
+                              <div className="flex flex-wrap gap-2 items-center mt-1">
+                                <span style={{fontSize:11,color:"#ccc"}}>{tk.date}</span>
+                                <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:tk.priority==="alta"?"#F4A5A530":tk.priority==="media"?"#FFD58030":"#B2AC8830",color:tk.priority==="alta"?"#c05a5a":tk.priority==="media"?"#8a7230":"#5a6a45"}}>{tk.priority}</span>
+                                <TaskDetailsForm task={tk} catId={cat.id} upd={upd} color={cat.color} />
+                              </div>
                             </div>
+                            <button onClick={()=>upd(x=>{const c=x.categories.find(c=>c.id===cat.id);c.tasks=c.tasks.filter(t=>t.id!==tk.id);})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",padding:2,flexShrink:0}}><Trash2 size={13}/></button>
                           </div>
-                          <button onClick={()=>upd(x=>{const c=x.categories.find(c=>c.id===cat.id);c.tasks=c.tasks.filter(t=>t.id!==tk.id);})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",padding:2,flexShrink:0}}><Trash2 size={13}/></button>
                         </div>
                       ))}
                       <TaskForm catId={cat.id} upd={upd} color={cat.color}/>
@@ -427,18 +521,22 @@ export default function App() {
                   <div style={{display:"flex",flexDirection:"column",gap:16}}>
                     <div style={{padding:16,borderRadius:14,background:"rgba(255,255,255,.65)",border:"1px solid rgba(224,187,228,.25)"}}>
                       <div style={{fontSize:12,fontWeight:500,color:"#9b8ab4",marginBottom:12,textTransform:"uppercase",letterSpacing:1.2}}>Finanzas</div>
-                      {[["budgetEstimated","Presupuesto Estimado"],["budgetReal","Gasto Real"]].map(([f,l])=>(
-                        <div key={f} style={{marginBottom:10}}>
-                          <div style={{fontSize:12,color:"#aaa",marginBottom:4}}>{l}</div>
-                          <div style={{display:"flex",alignItems:"center",gap:6,padding:"8px 12px",borderRadius:10,border:"1px solid rgba(224,187,228,.3)",background:"white"}}>
-                            <span style={{color:"#B2AC88",fontSize:14}}>$</span>
-                            <input type="number" value={cat[f]} onChange={e=>upd(x=>{x.categories.find(c=>c.id===cat.id)[f]=+e.target.value;})} style={{border:"none",background:"transparent",flex:1,fontSize:14,color:"#4a3a5c"}}/>
-                          </div>
+                      <div className="mb-2">
+                        <div className="text-xs text-[#aaa] mb-1">Presupuesto Estimado</div>
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-white border border-[#E0BBE4]/30">
+                          <span className="text-[#B2AC88]">$</span>
+                          <input type="number" value={cat.budgetEstimated} onChange={e=>upd(x=>{x.categories.find(c=>c.id===cat.id).budgetEstimated=+e.target.value;})} className="border-none bg-transparent flex-1 text-[#4a3a5c] focus:outline-none" />
                         </div>
-                      ))}
-                      <div style={{padding:"9px 12px",borderRadius:10,background:diff>=0?"#B2AC8815":"#F4A5A515",border:`1px solid ${diff>=0?"#B2AC8840":"#F4A5A540"}`}}>
-                        <div style={{fontSize:11,color:"#aaa",marginBottom:2}}>Diferencia</div>
-                        <div style={{fontSize:17,fontWeight:600,color:diff>=0?"#5a7a4a":"#c05a5a"}}>{diff>=0?"+":""}{fmt(diff)}</div>
+                      </div>
+                      <div className="mb-2">
+                        <div className="text-xs text-[#aaa] mb-1">Gasto Real (automático)</div>
+                        <div className="p-2 rounded-lg bg-[#E0BBE4]/10 border border-[#E0BBE4]/30 text-[#4a3a5c] font-medium">
+                          {fmt(cat.budgetReal)}
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-[#B2AC88]/10 border border-[#B2AC88]/30">
+                        <div className="text-xs text-[#aaa]">Diferencia</div>
+                        <div className={`font-semibold ${diff>=0?"text-[#5a7a4a]":"text-[#c05a5a]"}`}>{diff>=0?"+":""}{fmt(diff)}</div>
                       </div>
                     </div>
                     <div>
@@ -461,27 +559,27 @@ export default function App() {
           </div>
         </div>}
 
-        {/* INVITADOS - AHORA USA EL MÓDULO COMPLETO DE GOOGLE SHEETS */}
+        {/* INVITADOS */}
         {tab==="invitados" && <div className="fade">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
             <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Invitados <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
             <SyncBadge status={sync}/>
           </div>
           <ErrorBoundary>
-            <Suspense fallback={<div className="text-center py-8">Cargando módulo de invitados y mesas...</div>}>
+            <Suspense fallback={<div className="text-center py-8">Cargando módulo de invitados...</div>}>
               <GuestManager />
             </Suspense>
           </ErrorBoundary>
         </div>}
 
-        {/* MESAS - DASHBOARD VISUAL */}
+        {/* MESAS con nuevo estilo */}
         {tab==="mesas" && <div className="fade">
           <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:26, flexWrap:"wrap", gap:12}}>
             <div className="serif" style={{fontSize:38, color:"#4a3a5c", fontWeight:300}}>Mesas <span style={{fontStyle:"italic", color:"#B2AC88"}}>✦</span></div>
             <SyncBadge status={sync}/>
           </div>
-          <div className="glass" style={{borderRadius:22, padding:"24px"}}>
-            <div className="mb-6"><TableConfig /></div>
+          <div className="glass rounded-2xl p-6 space-y-6">
+            <TableConfig />
             <ErrorBoundary>
               <Suspense fallback={<div className="text-center py-8">Cargando dashboard de mesas...</div>}>
                 <TableDashboard />
@@ -490,7 +588,16 @@ export default function App() {
           </div>
         </div>}
 
-        {/* TIMELINE */}
+        {/* FINANZAS - NUEVA PESTAÑA */}
+        {tab==="finanzas" && <div className="fade">
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
+            <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Finanzas <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
+            <SyncBadge status={sync}/>
+          </div>
+          <FinancialBreakdown categories={data.categories} />
+        </div>}
+
+        {/* TIMELINE (sin cambios) */}
         {tab==="timeline" && <div className="fade">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
             <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Día B <span style={{fontStyle:"italic",color:"#B2AC88"}}>— Cronograma ✦</span></div>
@@ -524,11 +631,11 @@ export default function App() {
   );
 }
 
-// ==================== Componentes auxiliares ====================
+// ==================== Componentes auxiliares (sin cambios, solo agrego TaskDetailsForm arriba) ====================
 
 function TaskForm({catId,upd,color}){
   const [open,setOpen]=useState(false);const [text,setText]=useState("");const [date,setDate]=useState("");const [prio,setPrio]=useState("media");
-  const ok=()=>{if(!text.trim())return;upd(x=>{x.categories.find(c=>c.id===catId).tasks.push({id:"t"+Date.now(),text,done:false,date,priority:prio});});setText("");setDate("");setOpen(false);};
+  const ok=()=>{if(!text.trim())return;upd(x=>{x.categories.find(c=>c.id===catId).tasks.push({id:"t"+Date.now(),text,done:false,date,priority:prio, details:[]});});setText("");setDate("");setOpen(false);};
   if(!open)return<button onClick={()=>setOpen(true)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 13px",borderRadius:11,border:`1px dashed ${color}`,background:"transparent",cursor:"pointer",color:"#bbb",fontSize:13}}><Plus size={14}/> Agregar tarea</button>;
   return<div style={{padding:13,borderRadius:12,background:"rgba(255,255,255,0.75)",border:"1px solid rgba(224,187,228,0.3)",display:"flex",flexDirection:"column",gap:9}}>
     <input placeholder="Descripción..." value={text} onChange={e=>setText(e.target.value)} style={{padding:"8px 11px",borderRadius:8,border:"1px solid #eee",fontSize:13}}/>
