@@ -85,82 +85,118 @@ export default function GuestManager() {
     }
   };
 
-  const syncWithSheets = async () => {
-    setSyncing(true);
-    setError(null);
-    try {
-      // Fetch sin timeout (o con timeout más largo usando Promise.race)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
-      const response = await fetch(CSV_URL, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      const text = await response.text();
-      const rows = parseCSV(text);
-      
-      if (rows.length === 0) throw new Error("El CSV está vacío o no se pudo parsear");
+ const syncWithSheets = async () => {
+  setSyncing(true);
+  setError(null);
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const response = await fetch(CSV_URL, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    const text = await response.text();
+    const rows = parseCSV(text);
+    
+    if (rows.length === 0) throw new Error("El CSV está vacío o no se pudo parsear");
 
-      // Filtrar filas que tengan teléfono (obligatorio)
-      const validRows = rows.filter(row => row.Telefono && row.Telefono.trim() !== "");
-      if (validRows.length === 0) throw new Error("No se encontraron filas con teléfono válido en el CSV");
+    // Normalizar nombres de columnas (quitar acentos, espacios, convertir a minúsculas)
+    const normalizeKey = (key) => {
+      return key.toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quitar acentos
+        .replace(/\s/g, ""); // quitar espacios
+    };
 
-      // Obtener datos existentes para preservar rsvp, alergias, mesa
-      const { data: existing } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
-      const existingMap = new Map(existing?.map(e => [e.telefono, e]) || []);
+    // Mapear cada fila usando claves normalizadas
+    const normalizedRows = rows.map(row => {
+      const newRow = {};
+      Object.keys(row).forEach(key => {
+        const normKey = normalizeKey(key);
+        newRow[normKey] = row[key];
+      });
+      return newRow;
+    });
 
-      // Agrupar por teléfono (eliminar duplicados dentro del CSV)
-      const uniqueMap = new Map();
-      for (const row of validRows) {
-        const telefono = row.Telefono.trim();
-        if (!uniqueMap.has(telefono)) {
-          uniqueMap.set(telefono, {
-            telefono,
-            nombre: row.Nombre?.trim() || "Sin nombre",
-            categoria: row.Categoria?.trim() || "",
-            prioridad: parsePrioridad(row.Prioridad?.trim() || "Media"),
-            invitado_de: row["Invitado de"]?.trim() || "",
-            comentario: row.Comentario?.trim() || "",
-            rsvp: existingMap.get(telefono)?.rsvp ?? false,
-            alergias: existingMap.get(telefono)?.alergias ?? "",
-            mesa: existingMap.get(telefono)?.mesa ?? null,
-          });
-        }
-      }
-      const upsertData = Array.from(uniqueMap.values());
-      
-      // Envío uno por uno para evitar conflictos de batch
-      let successCount = 0;
-      let errorCount = 0;
-      for (const item of upsertData) {
-        const { error } = await supabase
-          .from("guests")
-          .upsert(item, { onConflict: "telefono" });
-        if (error) {
-          console.error("Error con teléfono", item.telefono, error);
-          errorCount++;
-        } else {
-          successCount++;
-        }
-      }
+    // Buscar posibles nombres de columna para teléfono
+    const telefonoKey = Object.keys(normalizedRows[0]).find(k => 
+      k === "telefono" || k === "teléfono" || k === "phone" || k === "celular"
+    ) || "telefono";
 
-      if (errorCount > 0) {
-        throw new Error(`${errorCount} registros fallaron. Revisa la consola.`);
-      }
-
-      await loadGuests();
-      alert(`✅ Sincronización exitosa: ${successCount} invitados actualizados.`);
-    } catch (err) {
-      console.error(err);
-      if (err.name === "AbortError") {
-        setError("La sincronización tardó demasiado. Revisa tu conexión o la URL del CSV.");
-      } else {
-        setError("Error al sincronizar: " + err.message);
-      }
-    } finally {
-      setSyncing(false);
+    // Filtrar filas que tengan teléfono no vacío
+    const validRows = normalizedRows.filter(row => {
+      const tel = row[telefonoKey]?.trim();
+      return tel && tel !== "";
+    });
+    
+    if (validRows.length === 0) {
+      // Mostrar las primeras filas para depuración
+      console.log("Primera fila normalizada:", normalizedRows[0]);
+      throw new Error(`No se encontraron filas con teléfono válido. Columnas detectadas: ${Object.keys(normalizedRows[0] || {}).join(", ")}`);
     }
-  };
+
+    // Obtener datos existentes
+    const { data: existing } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
+    const existingMap = new Map(existing?.map(e => [e.telefono, e]) || []);
+
+    // Agrupar por teléfono
+    const uniqueMap = new Map();
+    for (const row of validRows) {
+      const telefono = row[telefonoKey].trim();
+      if (!uniqueMap.has(telefono)) {
+        // Buscar columna de nombre (puede variar)
+        const nombreKey = Object.keys(row).find(k => k === "nombre" || k === "name") || "nombre";
+        const categoriaKey = Object.keys(row).find(k => k === "categoria" || k === "category") || "categoria";
+        const prioridadKey = Object.keys(row).find(k => k === "prioridad" || k === "priority") || "prioridad";
+        const invitadoDeKey = Object.keys(row).find(k => k === "invitadode" || k === "invitado_de") || "invitadode";
+        const comentarioKey = Object.keys(row).find(k => k === "comentario" || k === "comment") || "comentario";
+
+        uniqueMap.set(telefono, {
+          telefono,
+          nombre: row[nombreKey]?.trim() || "Sin nombre",
+          categoria: row[categoriaKey]?.trim() || "",
+          prioridad: parsePrioridad(row[prioridadKey]?.trim() || "Media"),
+          invitado_de: row[invitadoDeKey]?.trim() || "",
+          comentario: row[comentarioKey]?.trim() || "",
+          rsvp: existingMap.get(telefono)?.rsvp ?? false,
+          alergias: existingMap.get(telefono)?.alergias ?? "",
+          mesa: existingMap.get(telefono)?.mesa ?? null,
+        });
+      }
+    }
+    const upsertData = Array.from(uniqueMap.values());
+    
+    // Envío uno por uno
+    let successCount = 0;
+    let errorCount = 0;
+    for (const item of upsertData) {
+      const { error } = await supabase
+        .from("guests")
+        .upsert(item, { onConflict: "telefono" });
+      if (error) {
+        console.error("Error con teléfono", item.telefono, error);
+        errorCount++;
+      } else {
+        successCount++;
+      }
+    }
+
+    if (errorCount > 0) {
+      throw new Error(`${errorCount} registros fallaron.`);
+    }
+
+    await loadGuests();
+    alert(`✅ Sincronización exitosa: ${successCount} invitados actualizados.`);
+  } catch (err) {
+    console.error(err);
+    if (err.name === "AbortError") {
+      setError("La sincronización tardó demasiado. Revisa tu conexión o la URL del CSV.");
+    } else {
+      setError("Error al sincronizar: " + err.message);
+    }
+  } finally {
+    setSyncing(false);
+  }
+};
 
   const assignTable = async (guestId, newLetter) => {
     if (!newLetter) return;
