@@ -165,7 +165,6 @@ function Ring({ pct, color, sz=88, label, sub }) {
   );
 }
 
-// Componente para detalles de tarea (inline)
 function TaskDetailsForm({ task, catId, upd, color }) {
   const [open, setOpen] = useState(false);
   const [details, setDetails] = useState(() => {
@@ -174,7 +173,7 @@ function TaskDetailsForm({ task, catId, upd, color }) {
       return {
         concepto: d.concepto || "",
         caracteristica: d.caracteristica || "",
-        precioUnitario: d.precioUnitario || "",
+        precioUnitario: d.precioUnitario === 0 ? "" : d.precioUnitario,
         piezas: d.piezas || 1,
         total: d.total || 0,
         metodoPago: d.metodoPago || "",
@@ -194,7 +193,7 @@ function TaskDetailsForm({ task, catId, upd, color }) {
     let newDetails = { ...details, [field]: value };
     if (field === "precioUnitario" || field === "piezas") {
       const pu = field === "precioUnitario" ? parseFloat(value || 0) : parseFloat(details.precioUnitario || 0);
-      const pz = field === "piezas" ? parseInt(value || 1) : parseInt(details.piezas || 1);
+      const pz = field === "piezas" ? parseInt(value, 10) : parseInt(details.piezas, 10);
       newDetails.total = (isNaN(pu) ? 0 : pu) * (isNaN(pz) ? 1 : pz);
     }
     setDetails(newDetails);
@@ -205,7 +204,7 @@ function TaskDetailsForm({ task, catId, upd, color }) {
       concepto: details.concepto,
       caracteristica: details.caracteristica,
       precioUnitario: parseFloat(details.precioUnitario) || 0,
-      piezas: parseInt(details.piezas) || 1,
+      piezas: parseInt(details.piezas, 10) || 1,
       total: details.total,
       metodoPago: details.metodoPago,
     };
@@ -215,7 +214,7 @@ function TaskDetailsForm({ task, catId, upd, color }) {
       if (!t.details) t.details = [];
       if (t.details.length === 0) t.details.push(finalDetails);
       else t.details[0] = finalDetails;
-      // Recalcular budgetReal de la categoría
+      // Recalcular budgetReal
       let real = 0;
       cat.tasks.forEach(tk => {
         if (tk.done && tk.details && tk.details.length > 0) {
@@ -264,10 +263,15 @@ function TaskDetailsForm({ task, catId, upd, color }) {
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
         />
         <input
-          type="number"
+          type="text"
           placeholder="Piezas"
           value={details.piezas}
-          onChange={e => updateDetail("piezas", parseInt(e.target.value) || 1)}
+          onChange={e => {
+            let val = e.target.value;
+            if (val === "" || /^\d+$/.test(val)) {
+              updateDetail("piezas", val === "" ? 1 : parseInt(val, 10));
+            }
+          }}
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
         />
         <input
