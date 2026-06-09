@@ -1,10 +1,11 @@
 // src/components/GuestManager.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
+import { Search, RefreshCw } from "lucide-react"; // usamos los mismos iconos que en App.jsx
 
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1kv3eReuvMR3buhp2TOC3EXOBZLyzomvhLF8GXw7BxcsHzKmtW43VGY5Uvm9AdQwlL7VxmWbO_DCF/pub?gid=65042535&single=true&output=csv";
 
-// Parseador CSV más robusto (maneja comillas, saltos de línea, etc.)
+// Parseador CSV robusto (igual que antes)
 const parseCSV = (text) => {
   const lines = text.split(/\r?\n/);
   if (lines.length === 0) return [];
@@ -18,14 +19,11 @@ const parseCSV = (text) => {
     let current = "";
     for (let j = 0; j < line.length; j++) {
       const ch = line[j];
-      if (ch === '"') {
-        inQuote = !inQuote;
-      } else if (ch === "," && !inQuote) {
+      if (ch === '"') inQuote = !inQuote;
+      else if (ch === "," && !inQuote) {
         values.push(current.trim());
         current = "";
-      } else {
-        current += ch;
-      }
+      } else current += ch;
     }
     values.push(current.trim());
     const obj = {};
@@ -39,7 +37,6 @@ const parseCSV = (text) => {
   return result;
 };
 
-// Convertir prioridad numérica a texto (opcional)
 const parsePrioridad = (val) => {
   const num = parseInt(val);
   if (num === 1) return "Alta";
@@ -62,7 +59,6 @@ export default function GuestManager() {
     if (saved) setMaxPerTable(parseInt(saved));
   }, []);
 
-  // Obtener siguiente número de mesa (con límite)
   const getNextTableNumber = (letter, currentGuests) => {
     const prefix = `${letter}-`;
     const existing = currentGuests
@@ -75,7 +71,6 @@ export default function GuestManager() {
     return null;
   };
 
-  // Cargar invitados desde Supabase
   const loadGuests = async () => {
     setLoading(true);
     try {
@@ -84,13 +79,12 @@ export default function GuestManager() {
       setGuests(data || []);
     } catch (err) {
       console.error(err);
-      setError("Error al cargar invitados desde Supabase: " + err.message);
+      setError("Error al cargar invitados desde Supabase");
     } finally {
       setLoading(false);
     }
   };
 
-  // Sincronizar con Google Sheets
   const syncWithSheets = async () => {
     setSyncing(true);
     setError(null);
@@ -102,34 +96,38 @@ export default function GuestManager() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = await response.text();
       const rows = parseCSV(text);
-      if (rows.length === 0) throw new Error("El CSV está vacío o no se pudo parsear");
+      if (rows.length === 0) throw new Error("El CSV está vacío");
 
-      // Obtener datos existentes para no sobrescribir rsvp/alergias/mesa
       const { data: existing } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
       const existingMap = new Map(existing?.map(e => [e.telefono, e]) || []);
 
-      const upsertData = rows.map(row => ({
-        telefono: row.Telefono?.trim() || "",
-        nombre: row.Nombre?.trim() || "",
-        categoria: row.Categoria?.trim() || "",
-        prioridad: parsePrioridad(row.Prioridad?.trim() || "Media"),
-        invitado_de: row["Invitado de"]?.trim() || "",
-        comentario: row.Comentario?.trim() || "",
-        rsvp: existingMap.get(row.Telefono)?.rsvp ?? false,
-        alergias: existingMap.get(row.Telefono)?.alergias ?? "",
-        mesa: existingMap.get(row.Telefono)?.mesa ?? null,
-      })).filter(g => g.telefono);
+      const uniqueMap = new Map();
+      for (const row of rows) {
+        const telefono = row.Telefono?.trim();
+        if (!telefono) continue;
+        if (!uniqueMap.has(telefono)) {
+          uniqueMap.set(telefono, {
+            telefono,
+            nombre: row.Nombre?.trim() || "",
+            categoria: row.Categoria?.trim() || "",
+            prioridad: parsePrioridad(row.Prioridad?.trim() || "Media"),
+            invitado_de: row["Invitado de"]?.trim() || "",
+            comentario: row.Comentario?.trim() || "",
+            rsvp: existingMap.get(telefono)?.rsvp ?? false,
+            alergias: existingMap.get(telefono)?.alergias ?? "",
+            mesa: existingMap.get(telefono)?.mesa ?? null,
+          });
+        }
+      }
+      const upsertData = Array.from(uniqueMap.values());
+      if (upsertData.length === 0) throw new Error("No hay datos válidos");
 
-      if (upsertData.length === 0) throw new Error("No se encontraron teléfonos válidos en el CSV");
-
-      const { error: upsertError } = await supabase
-        .from("guests")
-        .upsert(upsertData, { onConflict: "telefono" });
-
-      if (upsertError) throw upsertError;
+      // Envío uno por uno (evita conflictos batch)
+      for (const item of upsertData) {
+        await supabase.from("guests").upsert(item, { onConflict: "telefono" });
+      }
 
       await loadGuests();
-      alert("Sincronización completada correctamente.");
     } catch (err) {
       console.error(err);
       setError("Error al sincronizar: " + err.message);
@@ -138,7 +136,6 @@ export default function GuestManager() {
     }
   };
 
-  // Asignar mesa manualmente
   const assignTable = async (guestId, newLetter) => {
     if (!newLetter) return;
     const { data: allGuests } = await supabase.from("guests").select("*");
@@ -152,9 +149,8 @@ export default function GuestManager() {
       return;
     }
     const newMesa = `${newLetter}-${nextNum}`;
-    const { error } = await supabase.from("guests").update({ mesa: newMesa }).eq("id", guestId);
-    if (error) console.error(error);
-    else await loadGuests();
+    await supabase.from("guests").update({ mesa: newMesa }).eq("id", guestId);
+    await loadGuests();
   };
 
   useEffect(() => {
@@ -166,7 +162,6 @@ export default function GuestManager() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Filtros
   const filteredGuests = guests.filter(g => {
     if (filters.categoria && g.categoria !== filters.categoria) return false;
     if (filters.prioridad && g.prioridad !== filters.prioridad) return false;
@@ -174,98 +169,149 @@ export default function GuestManager() {
     return true;
   });
 
+  // Clases y estilos consistentes con App.jsx
+  const glassCard = "glass rounded-2xl p-5 md:p-6";
+  const filterButton = (active, value) => `
+    px-4 py-1.5 rounded-full text-sm font-medium transition-all
+    ${active === value 
+      ? "bg-[#E0BBE4] text-white shadow-sm" 
+      : "bg-white/50 text-[#4a3a5c] hover:bg-[#E0BBE4]/20 border border-[#E0BBE4]/30"
+    }
+  `;
+
   if (loading && !syncing) {
-    return <div className="p-4 text-center">Cargando invitados...</div>;
+    return (
+      <div className="flex justify-center items-center py-16">
+        <div className="text-[#4a3a5c]">Cargando invitados...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-        <h2 className="text-2xl font-bold">Lista de Invitados</h2>
+    <div className="space-y-6">
+      {/* Cabecera y botón sincronizar estilo glass */}
+      <div className={`${glassCard} flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
+        <h2 className="serif text-3xl md:text-4xl text-[#4a3a5c] font-light">
+          Invitados <span className="italic text-[#B2AC88]">✦</span>
+        </h2>
         <button
           onClick={syncWithSheets}
           disabled={syncing}
-          className="bg-[#E0BBE4] hover:bg-[#d0aad4] text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
+          className="flex items-center gap-2 px-5 py-2 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/40 transition-all text-sm font-medium"
         >
-          {syncing ? "🔄 Sincronizando..." : "🔄 Sincronizar con Google Sheets"}
+          <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />
+          {syncing ? "Sincronizando..." : "Sincronizar con Google Sheets"}
         </button>
       </div>
 
-      {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4 border border-red-300">{error}</div>}
+      {error && (
+        <div className="bg-red-100/80 backdrop-blur-sm border border-red-300 text-red-700 p-3 rounded-xl">
+          {error}
+        </div>
+      )}
 
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-4 mb-4">
-        <input
-          type="text"
-          placeholder="Buscar por nombre..."
-          value={filters.nombre}
-          onChange={e => setFilters({ ...filters, nombre: e.target.value })}
-          className="border p-2 rounded w-64"
-        />
-        <select value={filters.categoria} onChange={e => setFilters({ ...filters, categoria: e.target.value })} className="border p-2 rounded">
+      {/* Filtros estilo glass */}
+      <div className={`${glassCard} flex flex-wrap gap-3 items-center`}>
+        <div className="relative flex-1 min-w-[180px]">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre..."
+            value={filters.nombre}
+            onChange={e => setFilters({ ...filters, nombre: e.target.value })}
+            className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] placeholder:text-[#aaa] focus:outline-none focus:ring-1 focus:ring-[#E0BBE4]"
+          />
+        </div>
+
+        <select
+          value={filters.categoria}
+          onChange={e => setFilters({ ...filters, categoria: e.target.value })}
+          className="px-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] text-sm focus:outline-none"
+        >
           <option value="">Todas las categorías</option>
           <option>Familia</option><option>Amigos</option><option>Trabajo</option><option>Conocidos</option>
         </select>
-        <select value={filters.prioridad} onChange={e => setFilters({ ...filters, prioridad: e.target.value })} className="border p-2 rounded">
+
+        <select
+          value={filters.prioridad}
+          onChange={e => setFilters({ ...filters, prioridad: e.target.value })}
+          className="px-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] text-sm focus:outline-none"
+        >
           <option value="">Todas las prioridades</option>
           <option>Alta</option><option>Media</option><option>Baja</option>
         </select>
       </div>
 
-      {/* Tabla */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full bg-white border">
+      {/* Tabla estilo glass */}
+      <div className={`${glassCard} overflow-x-auto`}>
+        <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-100">
-              <th className="p-2 border">Nombre</th><th className="p-2 border">Teléfono</th><th className="p-2 border">Categoría</th>
-              <th className="p-2 border">Prioridad</th><th className="p-2 border">Invitado de</th><th className="p-2 border">Comentario</th>
-              <th className="p-2 border">Mesa</th><th className="p-2 border">RSVP</th><th className="p-2 border">Alergias</th><th className="p-2 border">WhatsApp</th>
-            </tr>
+            <tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4] font-medium uppercase tracking-wider">
+              <th className="py-3 px-2 text-left">Nombre</th>
+              <th className="py-3 px-2 text-left">Teléfono</th>
+              <th className="py-3 px-2 text-left">Categoría</th>
+              <th className="py-3 px-2 text-left">Prioridad</th>
+              <th className="py-3 px-2 text-left">Invitado de</th>
+              <th className="py-3 px-2 text-left">Comentario</th>
+              <th className="py-3 px-2 text-left">Mesa</th>
+              <th className="py-3 px-2 text-left">RSVP</th>
+              <th className="py-3 px-2 text-left">Alergias</th>
+              <th className="py-3 px-2 text-left">WhatsApp</th>
+             </tr>
           </thead>
           <tbody>
-            {filteredGuests.map(guest => (
-              <tr key={guest.id} className="border-b hover:bg-gray-50">
-                <td className="p-2">{guest.nombre}</td>
-                <td className="p-2">{guest.telefono}</td>
-                <td className="p-2">{guest.categoria}</td>
-                <td className="p-2">{guest.prioridad}</td>
-                <td className="p-2">{guest.invitado_de}</td>
-                <td className="p-2">{guest.comentario}</td>
-                <td className="p-2">
+            {filteredGuests.map((guest, idx) => (
+              <tr key={guest.id} className={`border-b border-[#E0BBE4]/15 ${idx % 2 === 0 ? "bg-white/20" : "bg-transparent"} hover:bg-[#E0BBE4]/10 transition`}>
+                <td className="py-2 px-2 font-medium text-[#4a3a5c]">{guest.nombre}</td>
+                <td className="py-2 px-2 text-[#6b5c7e]">{guest.telefono}</td>
+                <td className="py-2 px-2">{guest.categoria}</td>
+                <td className="py-2 px-2">
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium
+                    ${guest.prioridad === "Alta" ? "bg-[#F4A5A5]/30 text-[#c05a5a]" : 
+                      guest.prioridad === "Media" ? "bg-[#FFD580]/30 text-[#8a7230]" : 
+                      "bg-[#B2AC88]/30 text-[#5a6a45]"}`}>
+                    {guest.prioridad}
+                  </span>
+                </td>
+                <td className="py-2 px-2">{guest.invitado_de}</td>
+                <td className="py-2 px-2 text-[#aaa]">{guest.comentario}</td>
+                <td className="py-2 px-2">
                   <select
                     value={guest.mesa ? guest.mesa.split("-")[0] : ""}
                     onChange={e => assignTable(guest.id, e.target.value)}
-                    className="border rounded p-1"
+                    className="bg-white/60 border border-[#E0BBE4]/40 rounded-lg px-2 py-1 text-sm focus:outline-none"
                   >
                     <option value="">Sin mesa</option>
                     {[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(l => (
                       <option key={l} value={l}>Mesa {l}</option>
                     ))}
                   </select>
-                  {guest.mesa && <span className="ml-2 text-sm text-gray-500">({guest.mesa})</span>}
+                  {guest.mesa && <span className="ml-1 text-xs text-[#B2AC88]">({guest.mesa})</span>}
                 </td>
-                <td className="p-2">{guest.rsvp ? "✅ Confirmado" : "⏳ Pendiente"}</td>
-                <td className="p-2">{guest.alergias || "Ninguna"}</td>
-                <td className="p-2">
+                <td className="py-2 px-2">
+                  {guest.rsvp ? "✅ Confirmado" : "⏳ Pendiente"}
+                </td>
+                <td className="py-2 px-2">{guest.alergias || "Ninguna"}</td>
+                <td className="py-2 px-2">
                   <a
                     href={`https://wa.me/${guest.telefono}?text=Hola%20${encodeURIComponent(guest.nombre)}%2C%20confirma%20tu%20asistencia%20en%20${process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form"}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-green-600 hover:text-green-800"
+                    className="text-[#B2AC88] hover:text-[#7a7555] transition"
                   >
                     📱
                   </a>
                 </td>
-              </tr>
+               </tr>
             ))}
           </tbody>
         </table>
+        {filteredGuests.length === 0 && !loading && (
+          <div className="text-center py-10 text-[#aaa]">
+            No hay invitados. Sincroniza con Google Sheets para cargarlos.
+          </div>
+        )}
       </div>
-      {filteredGuests.length === 0 && !loading && (
-        <div className="text-center py-8 text-gray-500">
-          No hay invitados. Haz clic en "Sincronizar con Google Sheets" para cargarlos.
-        </div>
-      )}
     </div>
   );
 }
