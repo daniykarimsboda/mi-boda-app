@@ -176,7 +176,6 @@ function TaskDetailsForm({ task, catId, upd, color }) {
     total: 0,
   });
 
-  // Cargar datos existentes al abrir
   useEffect(() => {
     if (open && task.details && task.details.length > 0) {
       const d = task.details[0];
@@ -203,8 +202,10 @@ function TaskDetailsForm({ task, catId, upd, color }) {
   // Recalcular total cuando cambien precio o piezas
   useEffect(() => {
     const pu = parseFloat(formData.precioUnitario) || 0;
-    const pz = parseInt(formData.piezas, 10) || 1;
-    setFormData(prev => ({ ...prev, total: pu * pz }));
+    // Si piezas es string vacío, lo tratamos como 0 para el cálculo, pero no mostramos error
+    const pz = formData.piezas === "" ? 0 : parseInt(formData.piezas, 10);
+    const nuevoTotal = pu * (isNaN(pz) ? 0 : pz);
+    setFormData(prev => ({ ...prev, total: nuevoTotal }));
   }, [formData.precioUnitario, formData.piezas]);
 
   const updateField = (field, value) => {
@@ -212,12 +213,18 @@ function TaskDetailsForm({ task, catId, upd, color }) {
   };
 
   const saveDetails = () => {
+    // Si piezas está vacío, asignar 1
+    let piezasFinal = formData.piezas;
+    if (piezasFinal === "") piezasFinal = "1";
+    const piezasNum = parseInt(piezasFinal, 10);
+    const precioNum = parseFloat(formData.precioUnitario) || 0;
+    
     const finalDetails = {
       concepto: formData.concepto,
       caracteristica: formData.caracteristica,
-      precioUnitario: parseFloat(formData.precioUnitario) || 0,
-      piezas: parseInt(formData.piezas, 10) || 1,
-      total: formData.total,
+      precioUnitario: precioNum,
+      piezas: piezasNum,
+      total: precioNum * piezasNum,
       metodoPago: formData.metodoPago,
     };
     upd(x => {
@@ -280,9 +287,9 @@ function TaskDetailsForm({ task, catId, upd, color }) {
           value={formData.piezas}
           onChange={e => {
             let val = e.target.value;
-            // Permitir solo dígitos
+            // Permitir vacío o solo dígitos
             if (val === "" || /^\d+$/.test(val)) {
-              updateField("piezas", val === "" ? "1" : val);
+              updateField("piezas", val);
             }
           }}
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
