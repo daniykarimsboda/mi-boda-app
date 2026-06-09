@@ -92,131 +92,94 @@ export default function GuestManager() {
   };
 
   const syncWithSheets = async () => {
-    setSyncing(true);
-    setError(null);
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
-      const response = await fetch(CSV_URL, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      const text = await response.text();
-      const rows = parseCSV(text);
-      
-      if (rows.length === 0) throw new Error("El CSV está vacío o no se pudo parsear");
-
-      // Normalizar nombres de columnas (sin acentos)
-      const normalizeKey = (key) => {
-        return key.toLowerCase()
-          .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-          .replace(/\s/g, "");
-      };
-
-      const normalizedRows = rows.map(row => {
-        const newRow = {};
-        Object.keys(row).forEach(key => {
-          const normKey = normalizeKey(key);
-          newRow[normKey] = row[key];
-        });
-        return newRow;
-      });
-      
-      // Detectar columnas
-      const telefonoKey = Object.keys(normalizedRows[0]).find(k => 
-        k === "telefono" || k === "teléfono" || k === "phone"
-      ) || "telefono";
-      
-      const nombreKey = Object.keys(normalizedRows[0]).find(k => k === "nombre" || k === "name") || "nombre";
-      const categoriaKey = Object.keys(normalizedRows[0]).find(k => k === "categoria" || k === "category") || "categoria";
-      const prioridadKey = Object.keys(normalizedRows[0]).find(k => k === "prioridad" || k === "priority") || "prioridad";
-      const invitadoDeKey = Object.keys(normalizedRows[0]).find(k => k === "invitadode" || k === "invitado_de") || "invitadode";
-      const comentarioKey = Object.keys(normalizedRows[0]).find(k => k === "comentario" || k === "comment") || "comentario";
-
-      // Obtener datos existentes para preservar rsvp, alergias, mesa
-      const { data: existing } = await supabase.from("guests").select("telefono, nombre, rsvp, alergias, mesa");
-      // Mapa por teléfono artificial también (para quienes no tienen teléfono)
-      const existingMap = new Map();
-      existing?.forEach(e => {
-        // Si el teléfono es nulo o empieza con "sin_telefono_", usamos el nombre como clave adicional
-        if (e.telefono && !e.telefono.startsWith("sin_telefono_")) {
-          existingMap.set(e.telefono, e);
-        } else {
-          // Guardar también por nombre normalizado para invitados sin teléfono
-          existingMap.set(`nombre:${e.nombre?.toLowerCase().trim()}`, e);
-        }
-      });
-
-      // Procesar todas las filas (sin filtrar por teléfono vacío)
-      const upsertData = [];
-      for (const row of normalizedRows) {
-        let telefono = row[telefonoKey]?.trim();
-        const nombre = row[nombreKey]?.trim() || "Sin nombre";
-        
-        // Si no hay teléfono, generar uno artificial basado en el nombre
-        let buscarKey = telefono;
-        let telefonoFinal = telefono;
-        if (!telefono || telefono === "") {
-          telefonoFinal = generarTelefonoArtificial(nombre);
-          buscarKey = `nombre:${nombre.toLowerCase().trim()}`;
-        }
-        
-        // Buscar si ya existe (por teléfono real o por nombre artificial)
-        let existente = null;
-        if (telefono && !telefono.startsWith("sin_telefono_")) {
-          existente = existingMap.get(telefono);
-        }
-        if (!existente && buscarKey) {
-          existente = existingMap.get(buscarKey);
-        }
-        
-        upsertData.push({
-          telefono: telefonoFinal,
-          nombre: nombre,
-          categoria: row[categoriaKey]?.trim() || "",
-          prioridad: parsePrioridad(row[prioridadKey]?.trim() || "Media"),
-          invitado_de: row[invitadoDeKey]?.trim() || "",
-          comentario: row[comentarioKey]?.trim() || "",
-          rsvp: existente?.rsvp ?? false,
-          alergias: existente?.alergias ?? "",
-          mesa: existente?.mesa ?? null,
-        });
-      }
-      
-      if (upsertData.length === 0) throw new Error("No hay datos para sincronizar");
-
-      // Envío uno por uno
-      let successCount = 0;
-      let errorCount = 0;
-      for (const item of upsertData) {
-        const { error } = await supabase
-          .from("guests")
-          .upsert(item, { onConflict: "telefono" });
-        if (error) {
-          console.error("Error al guardar", item.nombre, error);
-          errorCount++;
-        } else {
-          successCount++;
-        }
-      }
-
-      if (errorCount > 0) {
-        console.warn(`${errorCount} registros fallaron, pero se continuó.`);
-      }
-      
-      await loadGuests();
-      alert(`✅ Sincronización completa: ${successCount} invitados actualizados.`);
-    } catch (err) {
-      console.error(err);
-      if (err.name === "AbortError") {
-        setError("La sincronización tardó demasiado. Revisa tu conexión.");
-      } else {
-        setError("Error al sincronizar: " + err.message);
-      }
-    } finally {
-      setSyncing(false);
+  setSyncing(true);
+  setError(null);
+  try {
+    const response = await fetch(CSV_URL);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const text = await response.text();
+    
+    // Parseo simple y robusto
+    const lines = text.split(/\r?\n/);
+    const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim());
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line === "") continue;
+      const values = line.split(",").map(v => v.replace(/^"|"$/g, "").trim());
+      const obj = {};
+      headers.forEach((h, idx) => { obj[h] = values[idx] || ""; });
+      rows.push(obj);
     }
-  };
+    
+    if (rows.length === 0) throw new Error("El CSV está vacío");
+
+    // Normalizar columnas (sin acentos)
+    const normalizeKey = (key) => key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s/g, "");
+    const firstRow = rows[0];
+    const keys = Object.keys(firstRow);
+    const colIndex = (namePattern) => keys.findIndex(k => normalizeKey(k) === namePattern);
+    
+    const idxNombre = colIndex("nombre");
+    const idxTelefono = colIndex("telefono");
+    const idxCategoria = colIndex("categoria");
+    const idxPrioridad = colIndex("prioridad");
+    const idxInvitadoDe = colIndex("invitadode");
+    const idxComentario = colIndex("comentario");
+    
+    // Preparar datos para insertar
+    const nuevosGuests = rows.map(row => {
+      let telefono = idxTelefono !== -1 ? row[keys[idxTelefono]] : "";
+      telefono = telefono && telefono.trim() !== "" ? telefono.trim() : null;
+      
+      let prioridad = idxPrioridad !== -1 ? row[keys[idxPrioridad]] : "Media";
+      const prioridadNum = parseInt(prioridad);
+      if (prioridadNum === 1) prioridad = "Alta";
+      else if (prioridadNum === 2) prioridad = "Media";
+      else if (prioridadNum === 3) prioridad = "Baja";
+      else if (!["Alta","Media","Baja"].includes(prioridad)) prioridad = "Media";
+      
+      return {
+        nombre: idxNombre !== -1 ? (row[keys[idxNombre]] || "Sin nombre") : "Sin nombre",
+        telefono: telefono,
+        categoria: idxCategoria !== -1 ? (row[keys[idxCategoria]] || "") : "",
+        prioridad: prioridad,
+        invitado_de: idxInvitadoDe !== -1 ? (row[keys[idxInvitadoDe]] || "") : "",
+        comentario: idxComentario !== -1 ? (row[keys[idxComentario]] || "") : "",
+        rsvp: false,
+        alergias: "",
+        mesa: null,
+      };
+    });
+    
+    if (nuevosGuests.length === 0) throw new Error("No se generaron datos");
+    
+    // Vaciar la tabla antes de insertar (para evitar duplicados)
+    const { error: deleteError } = await supabase.from("guests").delete().neq("id", 0);
+    if (deleteError) console.warn("Error al limpiar tabla:", deleteError);
+    
+    // Insertar en lotes de 50
+    let successCount = 0;
+    const batchSize = 50;
+    for (let i = 0; i < nuevosGuests.length; i += batchSize) {
+      const batch = nuevosGuests.slice(i, i + batchSize);
+      const { error } = await supabase.from("guests").insert(batch);
+      if (error) {
+        console.error("Error en lote:", error);
+      } else {
+        successCount += batch.length;
+      }
+    }
+    
+    await loadGuests();
+    alert(`✅ Sincronización completa: ${successCount} invitados cargados.`);
+  } catch (err) {
+    console.error(err);
+    setError("Error al sincronizar: " + err.message);
+  } finally {
+    setSyncing(false);
+  }
+};
 
   const assignTable = async (guestId, newLetter) => {
     if (!newLetter) return;
