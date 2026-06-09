@@ -1,11 +1,11 @@
 // src/components/GuestManager.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { Search, RefreshCw } from "lucide-react"; // usamos los mismos iconos que en App.jsx
+import { Search, RefreshCw } from "lucide-react";
 
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1kv3eReuvMR3buhp2TOC3EXOBZLyzomvhLF8GXw7BxcsHzKmtW43VGY5Uvm9AdQwlL7VxmWbO_DCF/pub?gid=65042535&single=true&output=csv";
 
-// Parseador CSV robusto (igual que antes)
+// Parseador CSV robusto
 const parseCSV = (text) => {
   const lines = text.split(/\r?\n/);
   if (lines.length === 0) return [];
@@ -89,26 +89,34 @@ export default function GuestManager() {
     setSyncing(true);
     setError(null);
     try {
+      // Fetch sin timeout (o con timeout más largo usando Promise.race)
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
       const response = await fetch(CSV_URL, { signal: controller.signal });
-      clearTimeout(timeout);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       const text = await response.text();
       const rows = parseCSV(text);
-      if (rows.length === 0) throw new Error("El CSV está vacío");
+      
+      if (rows.length === 0) throw new Error("El CSV está vacío o no se pudo parsear");
 
+      // Filtrar filas que tengan teléfono (obligatorio)
+      const validRows = rows.filter(row => row.Telefono && row.Telefono.trim() !== "");
+      if (validRows.length === 0) throw new Error("No se encontraron filas con teléfono válido en el CSV");
+
+      // Obtener datos existentes para preservar rsvp, alergias, mesa
       const { data: existing } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
       const existingMap = new Map(existing?.map(e => [e.telefono, e]) || []);
 
+      // Agrupar por teléfono (eliminar duplicados dentro del CSV)
       const uniqueMap = new Map();
-      for (const row of rows) {
-        const telefono = row.Telefono?.trim();
-        if (!telefono) continue;
+      for (const row of validRows) {
+        const telefono = row.Telefono.trim();
         if (!uniqueMap.has(telefono)) {
           uniqueMap.set(telefono, {
             telefono,
-            nombre: row.Nombre?.trim() || "",
+            nombre: row.Nombre?.trim() || "Sin nombre",
             categoria: row.Categoria?.trim() || "",
             prioridad: parsePrioridad(row.Prioridad?.trim() || "Media"),
             invitado_de: row["Invitado de"]?.trim() || "",
@@ -120,17 +128,35 @@ export default function GuestManager() {
         }
       }
       const upsertData = Array.from(uniqueMap.values());
-      if (upsertData.length === 0) throw new Error("No hay datos válidos");
-
-      // Envío uno por uno (evita conflictos batch)
+      
+      // Envío uno por uno para evitar conflictos de batch
+      let successCount = 0;
+      let errorCount = 0;
       for (const item of upsertData) {
-        await supabase.from("guests").upsert(item, { onConflict: "telefono" });
+        const { error } = await supabase
+          .from("guests")
+          .upsert(item, { onConflict: "telefono" });
+        if (error) {
+          console.error("Error con teléfono", item.telefono, error);
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      }
+
+      if (errorCount > 0) {
+        throw new Error(`${errorCount} registros fallaron. Revisa la consola.`);
       }
 
       await loadGuests();
+      alert(`✅ Sincronización exitosa: ${successCount} invitados actualizados.`);
     } catch (err) {
       console.error(err);
-      setError("Error al sincronizar: " + err.message);
+      if (err.name === "AbortError") {
+        setError("La sincronización tardó demasiado. Revisa tu conexión o la URL del CSV.");
+      } else {
+        setError("Error al sincronizar: " + err.message);
+      }
     } finally {
       setSyncing(false);
     }
@@ -169,15 +195,7 @@ export default function GuestManager() {
     return true;
   });
 
-  // Clases y estilos consistentes con App.jsx
   const glassCard = "glass rounded-2xl p-5 md:p-6";
-  const filterButton = (active, value) => `
-    px-4 py-1.5 rounded-full text-sm font-medium transition-all
-    ${active === value 
-      ? "bg-[#E0BBE4] text-white shadow-sm" 
-      : "bg-white/50 text-[#4a3a5c] hover:bg-[#E0BBE4]/20 border border-[#E0BBE4]/30"
-    }
-  `;
 
   if (loading && !syncing) {
     return (
@@ -189,7 +207,6 @@ export default function GuestManager() {
 
   return (
     <div className="space-y-6">
-      {/* Cabecera y botón sincronizar estilo glass */}
       <div className={`${glassCard} flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
         <h2 className="serif text-3xl md:text-4xl text-[#4a3a5c] font-light">
           Invitados <span className="italic text-[#B2AC88]">✦</span>
@@ -206,11 +223,10 @@ export default function GuestManager() {
 
       {error && (
         <div className="bg-red-100/80 backdrop-blur-sm border border-red-300 text-red-700 p-3 rounded-xl">
-          {error}
+          ⚠️ {error}
         </div>
       )}
 
-      {/* Filtros estilo glass */}
       <div className={`${glassCard} flex flex-wrap gap-3 items-center`}>
         <div className="relative flex-1 min-w-[180px]">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
@@ -222,7 +238,6 @@ export default function GuestManager() {
             className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] placeholder:text-[#aaa] focus:outline-none focus:ring-1 focus:ring-[#E0BBE4]"
           />
         </div>
-
         <select
           value={filters.categoria}
           onChange={e => setFilters({ ...filters, categoria: e.target.value })}
@@ -231,7 +246,6 @@ export default function GuestManager() {
           <option value="">Todas las categorías</option>
           <option>Familia</option><option>Amigos</option><option>Trabajo</option><option>Conocidos</option>
         </select>
-
         <select
           value={filters.prioridad}
           onChange={e => setFilters({ ...filters, prioridad: e.target.value })}
@@ -242,7 +256,6 @@ export default function GuestManager() {
         </select>
       </div>
 
-      {/* Tabla estilo glass */}
       <div className={`${glassCard} overflow-x-auto`}>
         <table className="w-full text-sm">
           <thead>
@@ -288,9 +301,7 @@ export default function GuestManager() {
                   </select>
                   {guest.mesa && <span className="ml-1 text-xs text-[#B2AC88]">({guest.mesa})</span>}
                 </td>
-                <td className="py-2 px-2">
-                  {guest.rsvp ? "✅ Confirmado" : "⏳ Pendiente"}
-                </td>
+                <td className="py-2 px-2">{guest.rsvp ? "✅ Confirmado" : "⏳ Pendiente"}</td>
                 <td className="py-2 px-2">{guest.alergias || "Ninguna"}</td>
                 <td className="py-2 px-2">
                   <a
@@ -302,7 +313,7 @@ export default function GuestManager() {
                     📱
                   </a>
                 </td>
-               </tr>
+              </tr>
             ))}
           </tbody>
         </table>
