@@ -3,7 +3,7 @@ import {
   Heart, Users, Clock, Sparkles, Menu, X, ChevronDown, ChevronUp,
   Plus, Trash2, Check, Download, Share2, Edit2, Save, Search,
   Flower, Music, Shirt, UtensilsCrossed, Camera, Car, Star, Gift,
-  Cloud, CloudOff, Loader2, FileText, DollarSign
+  Cloud, CloudOff, Loader2, DollarSign
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -165,6 +165,7 @@ function Ring({ pct, color, sz=88, label, sub }) {
   );
 }
 
+// Componente de detalles de tarea (sin método de pago)
 function TaskDetailsForm({ task, catId, upd, color }) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -172,7 +173,6 @@ function TaskDetailsForm({ task, catId, upd, color }) {
     caracteristica: "",
     precioUnitario: "",
     piezas: "1",
-    metodoPago: "",
     total: 0,
   });
 
@@ -184,7 +184,6 @@ function TaskDetailsForm({ task, catId, upd, color }) {
         caracteristica: d.caracteristica || "",
         precioUnitario: d.precioUnitario === 0 ? "" : d.precioUnitario.toString(),
         piezas: d.piezas?.toString() || "1",
-        metodoPago: d.metodoPago || "",
         total: d.total || 0,
       });
     } else if (open) {
@@ -193,16 +192,13 @@ function TaskDetailsForm({ task, catId, upd, color }) {
         caracteristica: "",
         precioUnitario: "",
         piezas: "1",
-        metodoPago: "",
         total: 0,
       });
     }
   }, [open, task.details]);
 
-  // Recalcular total cuando cambien precio o piezas
   useEffect(() => {
     const pu = parseFloat(formData.precioUnitario) || 0;
-    // Si piezas es string vacío, lo tratamos como 0 para el cálculo, pero no mostramos error
     const pz = formData.piezas === "" ? 0 : parseInt(formData.piezas, 10);
     const nuevoTotal = pu * (isNaN(pz) ? 0 : pz);
     setFormData(prev => ({ ...prev, total: nuevoTotal }));
@@ -213,7 +209,6 @@ function TaskDetailsForm({ task, catId, upd, color }) {
   };
 
   const saveDetails = () => {
-    // Si piezas está vacío, asignar 1
     let piezasFinal = formData.piezas;
     if (piezasFinal === "") piezasFinal = "1";
     const piezasNum = parseInt(piezasFinal, 10);
@@ -225,7 +220,6 @@ function TaskDetailsForm({ task, catId, upd, color }) {
       precioUnitario: precioNum,
       piezas: piezasNum,
       total: precioNum * piezasNum,
-      metodoPago: formData.metodoPago,
     };
     upd(x => {
       const cat = x.categories.find(c => c.id === catId);
@@ -233,14 +227,7 @@ function TaskDetailsForm({ task, catId, upd, color }) {
       if (!t.details) t.details = [];
       if (t.details.length === 0) t.details.push(finalDetails);
       else t.details[0] = finalDetails;
-      // Recalcular budgetReal de la categoría
-      let real = 0;
-      cat.tasks.forEach(tk => {
-        if (tk.done && tk.details && tk.details.length > 0) {
-          real += tk.details.reduce((sum, d) => sum + (d.total || 0), 0);
-        }
-      });
-      cat.budgetReal = real;
+      // Recalcular budgetReal basado en pagos reales (se hará aparte)
     });
     setOpen(false);
   };
@@ -287,18 +274,10 @@ function TaskDetailsForm({ task, catId, upd, color }) {
           value={formData.piezas}
           onChange={e => {
             let val = e.target.value;
-            // Permitir vacío o solo dígitos
             if (val === "" || /^\d+$/.test(val)) {
               updateField("piezas", val);
             }
           }}
-          className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
-        />
-        <input
-          type="text"
-          placeholder="Método de Pago"
-          value={formData.metodoPago}
-          onChange={e => updateField("metodoPago", e.target.value)}
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
         />
         <div className="flex items-center gap-2 text-sm font-medium">
@@ -339,6 +318,17 @@ export default function App() {
     } catch (e) { console.warn(e); }
   };
 
+  const recalcBudgetRealFromPayments = async (x) => {
+    const { data: allPayments } = await sb.from("task_payments").select("*");
+    const sums = {};
+    allPayments?.forEach(p => {
+      sums[p.category_id] = (sums[p.category_id] || 0) + p.amount;
+    });
+    x.categories.forEach(cat => {
+      cat.budgetReal = sums[cat.id] || 0;
+    });
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -371,6 +361,12 @@ export default function App() {
           }
         })
       .on("postgres_changes", { event:"*", schema:"public", table:"guests" }, () => loadGuestStats())
+      .on("postgres_changes", { event:"*", schema:"public", table:"task_payments" }, () => {
+        // Recalcular budgetReal cuando cambien los pagos
+        upd(async (x) => {
+          await recalcBudgetRealFromPayments(x);
+        });
+      })
       .subscribe();
     return () => sb.removeChannel(channel);
   }, []);
@@ -439,7 +435,7 @@ export default function App() {
       <style>{CSS}</style>
       {toast && <div style={{position:"fixed",top:20,right:20,zIndex:999,background:"#7b4f8a",color:"white",padding:"12px 20px",borderRadius:14,fontSize:13,boxShadow:"0 8px 32px rgba(123,79,138,.35)"}}>✓ Link copiado!</div>}
 
-      {/* SIDEBAR - mismo código que tenías, solo agrego la pestaña Finanzas */}
+      {/* SIDEBAR */}
       <div style={{width:sidebarOpen?248:72,transition:"width .3s",flexShrink:0,background:"rgba(255,255,255,.78)",backdropFilter:"blur(28px)",borderRight:"1px solid rgba(224,187,228,.3)",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh",zIndex:50}}>
         <div style={{padding:"22px 18px 16px",borderBottom:"1px solid rgba(224,187,228,.2)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           {sidebarOpen && <div><div className="serif" style={{fontSize:22,color:"#4a3a5c",fontWeight:300,lineHeight:1.1}}>Wedding</div><div className="serif" style={{fontSize:22,color:"#B2AC88",fontStyle:"italic"}}>OS ✦</div></div>}
@@ -466,7 +462,7 @@ export default function App() {
       {/* MAIN */}
       <div style={{flex:1,overflow:"auto",padding:"32px 28px"}}>
 
-        {/* DASHBOARD (sin cambios) */}
+        {/* DASHBOARD */}
         {tab==="dashboard" && <div className="fade">
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:28,flexWrap:"wrap",gap:12}}>
             <div>
@@ -543,7 +539,7 @@ export default function App() {
           </div>
         </div>}
 
-        {/* CATEGORÍAS - AQUÍ SE AGREGAN LOS DETALLES Y EL GASTO REAL AUTOMÁTICO */}
+        {/* CATEGORÍAS */}
         {tab==="categorias" && <div className="fade">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
             <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Categorías <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
@@ -578,14 +574,7 @@ export default function App() {
                               const c = x.categories.find(c=>c.id===cat.id);
                               const t = c.tasks.find(t=>t.id===tk.id);
                               t.done = !t.done;
-                              // Recalcular budgetReal de la categoría
-                              let real = 0;
-                              c.tasks.forEach(task => {
-                                if (task.done && task.details && task.details.length > 0) {
-                                  real += task.details.reduce((sum, d) => sum + (d.total || 0), 0);
-                                }
-                              });
-                              c.budgetReal = real;
+                              // No recalculamos budgetReal aquí porque depende de pagos reales
                             })} style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${tk.done?"#B2AC88":"#ddd"}`,background:tk.done?"#B2AC88":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
                               {tk.done&&<Check size={12} color="white" strokeWidth={3}/>}
                             </button>
@@ -615,7 +604,7 @@ export default function App() {
                         </div>
                       </div>
                       <div className="mb-2">
-                        <div className="text-xs text-[#aaa] mb-1">Gasto Real (automático)</div>
+                        <div className="text-xs text-[#aaa] mb-1">Gasto Real (suma de pagos)</div>
                         <div className="p-2 rounded-lg bg-[#E0BBE4]/10 border border-[#E0BBE4]/30 text-[#4a3a5c] font-medium">
                           {fmt(cat.budgetReal)}
                         </div>
@@ -658,7 +647,7 @@ export default function App() {
           </ErrorBoundary>
         </div>}
 
-        {/* MESAS con nuevo estilo */}
+        {/* MESAS */}
         {tab==="mesas" && <div className="fade">
           <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:26, flexWrap:"wrap", gap:12}}>
             <div className="serif" style={{fontSize:38, color:"#4a3a5c", fontWeight:300}}>Mesas <span style={{fontStyle:"italic", color:"#B2AC88"}}>✦</span></div>
@@ -674,16 +663,30 @@ export default function App() {
           </div>
         </div>}
 
-        {/* FINANZAS - NUEVA PESTAÑA */}
+        {/* FINANZAS */}
         {tab==="finanzas" && <div className="fade">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
             <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Finanzas <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
             <SyncBadge status={sync}/>
           </div>
-          <FinancialBreakdown categories={data.categories} />
+          <FinancialBreakdown 
+            categories={data.categories} 
+            onPaymentAdded={() => {
+              upd(async (x) => {
+                const { data: allPayments } = await sb.from("task_payments").select("*");
+                const sums = {};
+                allPayments?.forEach(p => {
+                  sums[p.category_id] = (sums[p.category_id] || 0) + p.amount;
+                });
+                x.categories.forEach(cat => {
+                  cat.budgetReal = sums[cat.id] || 0;
+                });
+              });
+            }}
+          />
         </div>}
 
-        {/* TIMELINE (sin cambios) */}
+        {/* TIMELINE */}
         {tab==="timeline" && <div className="fade">
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
             <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Día B <span style={{fontStyle:"italic",color:"#B2AC88"}}>— Cronograma ✦</span></div>
@@ -717,7 +720,7 @@ export default function App() {
   );
 }
 
-// ==================== Componentes auxiliares (sin cambios, solo agrego TaskDetailsForm arriba) ====================
+// ==================== Componentes auxiliares ====================
 
 function TaskForm({catId,upd,color}){
   const [open,setOpen]=useState(false);const [text,setText]=useState("");const [date,setDate]=useState("");const [prio,setPrio]=useState("media");
