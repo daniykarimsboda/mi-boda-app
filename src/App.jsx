@@ -3,7 +3,8 @@ import {
   Heart, Users, Clock, Sparkles, Menu, X, ChevronDown, ChevronUp,
   Plus, Trash2, Check, Download, Share2, Edit2, Save, Search,
   Flower, Music, Shirt, UtensilsCrossed, Camera, Car, Star, Gift,
-  Cloud, CloudOff, Loader2, DollarSign, RefreshCw, StickyNote, Calendar
+  Cloud, CloudOff, Loader2, DollarSign, RefreshCw, StickyNote, Calendar,
+  Quote
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -12,11 +13,19 @@ import TableConfig from "./components/TableConfig";
 import TableDashboard from "./components/TableDashboard";
 import FinancialBreakdown from "./components/FinancialBreakdown";
 import PostItBoard from "./components/PostItBoard";
+import QuotesManager from "./components/QuotesManager";
 
 const SUPABASE_URL      = "https://gruszoneusbmhkmeogvn.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdydXN6b25ldXNibWhrbWVvZ3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODk1NDQsImV4cCI6MjA4OTg2NTU0NH0.Z_F4EIKj_sahMRNgywImTT6m5jMU1KhE6MWQ1oVLRpM";
 const ROW_ID = 1;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Helper para formatear fechas dd/mm/aaaa
+const formatDate = (dateStr) => {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-");
+  return `${day}/${month}/${year}`;
+};
 
 // Inicializar detalles y galería
 const initTaskDetails = (categories) => {
@@ -35,14 +44,8 @@ const INIT = {
   budget: 200000,
   categories: [
     { id:"banquete", icon:"UtensilsCrossed", label:"Banquete", color:"#E0BBE4", budgetEstimated:60000, budgetReal:0,
-      tasks: [
-        {id:"t1",text:"Cita de degustación",done:false,date:"2026-08-15",priority:"alta", details:[], gallery:[]},
-        {id:"t2",text:"Menú vegetariano",done:false,date:"2026-09-01",priority:"media", details:[], gallery:[]},
-      ],
-      visionItems: [
-        {id:"v1",url:"https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=400",label:"Decoración mesa"},
-        {id:"v2",url:"https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400",label:"Pastel"},
-      ]},
+      tasks: [{id:"t1",text:"Cita de degustación",done:false,date:"2026-08-15",priority:"alta", details:[], gallery:[]}],
+      visionItems: [{id:"v1",url:"https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=400",label:"Decoración mesa"}]},
     { id:"flores", icon:"Flower", label:"Flores", color:"#C8E6C9", budgetEstimated:30000, budgetReal:0,
       tasks: [{id:"t5",text:"Reunión con florista",done:true,date:"2026-07-10",priority:"alta", details:[], gallery:[]}],
       visionItems: [{id:"v3",url:"https://images.unsplash.com/photo-1490750967868-88df5691cc51?w=400",label:"Ramo"}]},
@@ -51,21 +54,13 @@ const INIT = {
     { id:"logistica", icon:"Car", label:"Logística", color:"#F8BBD9", budgetEstimated:20000, budgetReal:0, tasks:[], visionItems:[]},
     { id:"foto", icon:"Camera", label:"Fotografía", color:"#E1BEE7", budgetEstimated:30000, budgetReal:0, tasks:[], visionItems:[]},
   ],
-  timeline: [  // Día B (preparativos)
+  timeline: [
     {id:"tl1",time:"07:00",activity:"Despertar & Desayuno",icon:"Star"},
     {id:"tl2",time:"08:00",activity:"Maquillaje",icon:"Sparkles"},
-    {id:"tl3",time:"10:00",activity:"Fotografías",icon:"Camera"},
-    {id:"tl4",time:"13:00",activity:"Ceremonia",icon:"Heart"},
   ],
-  ddayTimeline: [ // D‑Day (día de la boda)
+  ddayTimeline: [
     {id:"dt1",time:"14:00",activity:"Llegada de invitados",icon:"Users"},
-    {id:"dt2",time:"15:00",activity:"Ceremonia religiosa",icon:"Heart"},
-    {id:"dt3",time:"16:30",activity:"Cóctel",icon:"Sparkles"},
-    {id:"dt4",time:"18:00",activity:"Banquete",icon:"UtensilsCrossed"},
-    {id:"dt5",time:"19:30",activity:"Primer baile",icon:"Music"},
-    {id:"dt6",time:"21:00",activity:"Pastel",icon:"Gift"},
-    {id:"dt7",time:"22:00",activity:"Fiesta",icon:"Music"},
-    {id:"dt8",time:"01:00",activity:"Despedida",icon:"Star"},
+    {id:"dt2",time:"15:00",activity:"Ceremonia",icon:"Heart"},
   ],
 };
 
@@ -105,16 +100,16 @@ const CSS = `
 
 function SyncBadge({ status }) {
   const M = {
-    loading:{ icon:<Loader2 size={13} className="spin"/>, text:"Cargando...", bg:"#F3E5F5", bd:"#CE93D8", c:"#6a1b9a" },
-    saving: { icon:<Loader2 size={13} className="spin"/>, text:"Guardando...", bg:"#FFF8E1", bd:"#FFD54F", c:"#8a6a00" },
-    saved:  { icon:<Cloud size={13}/>, text:"Sincronizado ✓", bg:"#E8F5E9", bd:"#A5D6A7", c:"#2e7d32" },
-    error:  { icon:<CloudOff size={13}/>, text:"Error de sync", bg:"#FFEBEE", bd:"#EF9A9A", c:"#c62828" },
-    idle:   { icon:<Cloud size={13}/>, text:"Conectado", bg:"#F3E5F5", bd:"#CE93D8", c:"#6a1b9a" },
+    loading:{ icon:<Loader2 size={12} className="spin"/>, text:"Cargando...", bg:"#F3E5F5", bd:"#CE93D8", c:"#6a1b9a" },
+    saving: { icon:<Loader2 size={12} className="spin"/>, text:"Guardando...", bg:"#FFF8E1", bd:"#FFD54F", c:"#8a6a00" },
+    saved:  { icon:<Cloud size={12}/>, text:"Sincronizado", bg:"#E8F5E9", bd:"#A5D6A7", c:"#2e7d32" },
+    error:  { icon:<CloudOff size={12}/>, text:"Error sync", bg:"#FFEBEE", bd:"#EF9A9A", c:"#c62828" },
+    idle:   { icon:<Cloud size={12}/>, text:"Conectado", bg:"#F3E5F5", bd:"#CE93D8", c:"#6a1b9a" },
   };
   const m = M[status] || M.idle;
   return (
-    <span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:20,
-      background:m.bg,border:`1px solid ${m.bd}`,color:m.c,fontSize:12,fontWeight:500,whiteSpace:"nowrap"}}>
+    <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:20,
+      background:m.bg,border:`1px solid ${m.bd}`,color:m.c,fontSize:11,fontWeight:500,whiteSpace:"nowrap"}}>
       {m.icon} {m.text}
     </span>
   );
@@ -134,6 +129,109 @@ function Ring({ pct, color, sz=88, label, sub }) {
       <div style={{textAlign:"center"}}>
         <div style={{fontSize:12,fontWeight:500,color:"#6b6b8a"}}>{label}</div>
         <div style={{fontSize:11,color:"#aaa"}}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+// Gráfico de barras horizontales para "Invitado de"
+function GuestByInviterChart({ guests }) {
+  const counts = {};
+  guests.forEach(g => { const inv = g.invitado_de || "Otro"; counts[inv] = (counts[inv] || 0) + 1; });
+  const total = guests.length;
+  const items = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  if (total === 0) return null;
+  return (
+    <div className="mt-4">
+      <h4 className="text-xs font-semibold text-[#4a3a5c] mb-2">Invitados por "Invitado de"</h4>
+      <div className="space-y-2">
+        {items.map(([name, count]) => (
+          <div key={name} className="flex items-center gap-2">
+            <span className="text-xs w-20 truncate">{name}</span>
+            <div className="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
+              <div className="h-full bg-[#E0BBE4] rounded-full" style={{ width: `${(count/total)*100}%` }}></div>
+            </div>
+            <span className="text-xs w-8">{count}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Gráfico de gastos por categoría (donut)
+function ExpensesByCategoryChart({ categories }) {
+  const data = categories.map(c => ({ label: c.label, value: c.budgetReal, color: c.color })).filter(c => c.value > 0);
+  const total = data.reduce((s, c) => s + c.value, 0);
+  if (total === 0) return <div className="text-center text-[#aaa] text-sm py-4">No hay gastos registrados</div>;
+  let accumulated = 0;
+  return (
+    <div className="mt-4">
+      <h4 className="text-sm font-semibold text-[#4a3a5c] mb-2">Gastos por categoría</h4>
+      <div className="flex flex-wrap gap-4 items-center">
+        <div className="relative w-24 h-24">
+          <svg viewBox="0 0 100 100" className="transform -rotate-90">
+            {data.map((item, idx) => {
+              const percent = (item.value / total) * 100;
+              const start = accumulated;
+              const end = start + percent;
+              const startAngle = (start / 100) * 360;
+              const endAngle = (end / 100) * 360;
+              const largeArc = percent > 50 ? 1 : 0;
+              const startRad = (startAngle * Math.PI) / 180;
+              const endRad = (endAngle * Math.PI) / 180;
+              const x1 = 50 + 40 * Math.cos(startRad);
+              const y1 = 50 + 40 * Math.sin(startRad);
+              const x2 = 50 + 40 * Math.cos(endRad);
+              const y2 = 50 + 40 * Math.sin(endRad);
+              const path = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
+              accumulated = end;
+              return <path key={idx} d={path} fill={item.color} stroke="white" strokeWidth="1" />;
+            })}
+            <circle cx="50" cy="50" r="25" fill="white" />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">{fmt(total)}</div>
+        </div>
+        <div className="flex-1 space-y-1">
+          {data.map(item => (
+            <div key={item.label} className="flex items-center gap-2 text-xs">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+              <span className="flex-1">{item.label}</span>
+              <span>{fmt(item.value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Collage dinámico
+function VisionBoardCollage({ categories }) {
+  const [images, setImages] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const allImages = [];
+    categories.forEach(cat => {
+      if (cat.visionItems && cat.visionItems.length) {
+        const randomIndex = Math.floor(Math.random() * cat.visionItems.length);
+        allImages.push({ url: cat.visionItems[randomIndex].url, label: cat.label, color: cat.color });
+      }
+    });
+    setImages(allImages);
+  }, [categories, refreshKey]);
+  const refresh = () => setRefreshKey(k => k+1);
+  if (images.length === 0) return <div className="text-center py-4 text-[#aaa]">Agrega imágenes en "Vision Board"</div>;
+  return (
+    <div className="mt-6">
+      <div className="flex justify-between items-center mb-3"><h3 className="serif text-xl text-[#4a3a5c]">✦ Inspiración visual</h3><button onClick={refresh} className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50"><RefreshCw size={12}/> Actualizar collage</button></div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 auto-rows-[150px]">
+        {images.map((img, idx) => (
+          <div key={idx} className="rounded-xl overflow-hidden shadow-md relative" style={{ gridRow: idx % 3 === 0 ? "span 2" : "span 1", backgroundColor: img.color }}>
+            <img src={img.url} alt={img.label} className="w-full h-full object-cover" onError={e=>e.target.src='https://via.placeholder.com/300?text=Imagen+no+disponible'}/>
+            <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs p-1">{img.label}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -223,41 +321,6 @@ function CategoryGallery({ catId, gallery, upd }) {
   );
 }
 
-// Collage dinámico en Dashboard
-function VisionBoardCollage({ categories, onRefresh }) {
-  const [images, setImages] = useState([]);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const refresh = () => {
-    setRefreshKey(k => k+1);
-    if (onRefresh) onRefresh();
-  };
-  useEffect(() => {
-    const allImages = [];
-    categories.forEach(cat => {
-      if (cat.visionItems && cat.visionItems.length) {
-        const randomIndex = Math.floor(Math.random() * cat.visionItems.length);
-        allImages.push({ url: cat.visionItems[randomIndex].url, label: cat.label, color: cat.color });
-      }
-    });
-    setImages(allImages);
-  }, [categories, refreshKey]);
-  if (images.length === 0) return <div className="text-center py-8 text-[#aaa]">Agrega imágenes en "Vision Board" de cada categoría</div>;
-  return (
-    <div className="mt-6">
-      <div className="flex justify-between items-center mb-3"><h3 className="serif text-xl text-[#4a3a5c]">✦ Inspiración visual</h3><button onClick={refresh} className="flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50"><RefreshCw size={14}/> Actualizar collage</button></div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 auto-rows-[180px]">
-        {images.map((img, idx) => (
-          <div key={idx} className="rounded-xl overflow-hidden shadow-md relative" style={{ gridRow: idx % 3 === 0 ? "span 2" : "span 1", backgroundColor: img.color }}>
-            <img src={img.url} alt={img.label} className="w-full h-full object-cover" onError={e=>e.target.src='https://via.placeholder.com/300?text=Imagen+no+disponible'}/>
-            <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs p-1">{img.label}</div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ==================== COMPONENTE PRINCIPAL ====================
 export default function App() {
   const [data, setData] = useState(() => safeState(JSON.parse(localStorage.getItem("wos5")) || INIT));
   const [sync, setSync] = useState("loading");
@@ -267,6 +330,7 @@ export default function App() {
   const [editD, setEditD] = useState(false);
   const [toast, setToast] = useState(false);
   const [guestStats, setGuestStats] = useState({ total:0, confirmados:0, pendientes:0, rechazados:0 });
+  const [guestsList, setGuestsList] = useState([]);
   const [showNewCatModal, setShowNewCatModal] = useState(false);
   const [newCatName, setNewCatName] = useState("");
   const [newCatIcon, setNewCatIcon] = useState("Heart");
@@ -280,10 +344,20 @@ export default function App() {
   const [editTaskDate, setEditTaskDate] = useState("");
   const [editTaskPriority, setEditTaskPriority] = useState("");
 
-  const loadGuestStats = async () => {
-    const { data: guests } = await sb.from("guests").select("rsvp");
-    if (guests) setGuestStats({ total: guests.length, confirmados: guests.filter(g=>g.rsvp===true).length, pendientes: guests.filter(g=>g.rsvp===false).length, rechazados: 0 });
+  // Cargar lista completa de invitados para gráficos
+  const loadFullGuests = async () => {
+    const { data: guests } = await sb.from("guests").select("*");
+    if (guests) {
+      setGuestsList(guests);
+      setGuestStats({
+        total: guests.length,
+        confirmados: guests.filter(g=>g.rsvp===true).length,
+        pendientes: guests.filter(g=>g.rsvp===false).length,
+        rechazados: 0,
+      });
+    }
   };
+
   const recalcBudgetRealFromPayments = async (x) => {
     const { data: allPayments } = await sb.from("task_payments").select("*");
     const sums = {};
@@ -291,6 +365,7 @@ export default function App() {
     x.categories.forEach(cat => cat.budgetReal = sums[cat.id] || 0);
     return x;
   };
+
   const createNewCategory = () => {
     if (!newCatName.trim()) return;
     const randomColor = COLORS[Math.floor(Math.random() * COLORS.length)];
@@ -330,7 +405,7 @@ export default function App() {
         setData(safe);
         localStorage.setItem("wos5", JSON.stringify(safe));
         setSync("idle");
-        await loadGuestStats();
+        await loadFullGuests();
       } catch { setSync("error"); }
     })();
   }, []);
@@ -340,7 +415,7 @@ export default function App() {
       .on("postgres_changes", { event:"UPDATE", schema:"public", table:"wedding_state", filter:`id=eq.${ROW_ID}` }, (payload) => {
         if (payload.new?.data) { setData(safeState(payload.new.data)); setSync("saved"); setTimeout(()=>setSync("idle"),2500); }
       })
-      .on("postgres_changes", { event:"*", schema:"public", table:"guests" }, () => loadGuestStats())
+      .on("postgres_changes", { event:"*", schema:"public", table:"guests" }, () => loadFullGuests())
       .on("postgres_changes", { event:"*", schema:"public", table:"task_payments" }, async () => { upd(async x => await recalcBudgetRealFromPayments(x)); })
       .subscribe();
     return () => sb.removeChannel(channel);
@@ -389,6 +464,7 @@ export default function App() {
     {id:"invitados", l:"Invitados", I:Users},
     {id:"mesas", l:"Mesas", I:Users},
     {id:"finanzas", l:"Finanzas", I:DollarSign},
+    {id:"cotizaciones", l:"Cotizaciones", I:Quote},
     {id:"timeline", l:"Día B", I:Clock},
     {id:"dday", l:"D‑Day", I:Calendar},
     {id:"postits", l:"Post-its", I:StickyNote},
@@ -398,14 +474,14 @@ export default function App() {
     <div style={{display:"flex",minHeight:"100vh",background:"linear-gradient(135deg,#F5F0F8 0%,#EFF5F0 50%,#F8F2ED 100%)",fontFamily:"'DM Sans',sans-serif"}}>
       <style>{CSS}</style>
       {toast && <div style={{position:"fixed",top:20,right:20,zIndex:999,background:"#7b4f8a",color:"white",padding:"12px 20px",borderRadius:14,fontSize:13}}>✓ Link copiado!</div>}
-      {/* Sidebar */}
+      {/* Sidebar con scroll */}
       <div style={{width:sidebarOpen?248:72,transition:"width .3s",flexShrink:0,background:"rgba(255,255,255,.78)",backdropFilter:"blur(28px)",borderRight:"1px solid rgba(224,187,228,.3)",display:"flex",flexDirection:"column",position:"sticky",top:0,height:"100vh",zIndex:50}}>
         <div style={{padding:"22px 18px 16px",borderBottom:"1px solid rgba(224,187,228,.2)",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           {sidebarOpen && <div><div className="serif" style={{fontSize:22,color:"#4a3a5c",fontWeight:300}}>Wedding</div><div className="serif" style={{fontSize:22,color:"#B2AC88",fontStyle:"italic"}}>OS ✦</div></div>}
           <button onClick={()=>setSO(o=>!o)} style={{background:"none",border:"none",cursor:"pointer",color:"#9b8ab4"}}>{sidebarOpen?<X size={18}/>:<Menu size={18}/>}</button>
         </div>
         {sidebarOpen && <div style={{padding:"12px 18px",borderBottom:"1px solid rgba(224,187,228,.15)"}}><div className="serif" style={{fontSize:16,color:"#6b5c7e",fontStyle:"italic"}}>{data.coupleName}</div><div style={{fontSize:11,color:"#aaa",marginTop:2}}>{data.weddingDate}</div><SyncBadge status={sync}/></div>}
-        <nav style={{flex:1,padding:"14px 8px",display:"flex",flexDirection:"column",gap:4}}>
+        <nav style={{flex:1,overflowY:"auto",padding:"14px 8px",display:"flex",flexDirection:"column",gap:4}}>
           {nav.map(({id,l,I})=><button key={id} onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 12px",borderRadius:12,background:tab===id?"rgba(224,187,228,.3)":"transparent",border:tab===id?"1px solid rgba(224,187,228,.5)":"1px solid transparent",cursor:"pointer",color:tab===id?"#7b4f8a":"#8a8aaa",fontWeight:tab===id?500:400,fontSize:14,textAlign:"left"}}><I size={18} strokeWidth={tab===id?2:1.5}/>{sidebarOpen&&l}</button>)}
         </nav>
         {sidebarOpen && <div style={{padding:"14px 16px",borderTop:"1px solid rgba(224,187,228,.2)",display:"flex",flexDirection:"column",gap:8}}>
@@ -423,47 +499,51 @@ export default function App() {
               <SyncBadge status={sync}/>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(215px,1fr))",gap:16,marginBottom:24}}>
-              <div className="glass" style={{borderRadius:22,padding:"22px 24px",position:"relative",overflow:"hidden"}}>
-                <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:10}}>Cuenta Regresiva</div>
-                <div className="serif" style={{fontSize:56,color:"#4a3a5c",fontWeight:300,lineHeight:1}}>{d}</div>
+              <div className="glass" style={{borderRadius:22,padding:"22px 24px",position:"relative"}}>
+                <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",marginBottom:10}}>Cuenta Regresiva</div>
+                <div className="serif" style={{fontSize:56,color:"#4a3a5c",fontWeight:300}}>{d}</div>
                 <div style={{fontSize:13,color:"#bbb",marginTop:6}}>días restantes</div>
-                {editD?(
-                  <div style={{marginTop:12,display:"flex",gap:8}}><input type="date" defaultValue={data.weddingDate} id="di" style={{flex:1,padding:"7px 10px",borderRadius:9,border:"1px solid #E0BBE4",fontSize:13}}/><button onClick={()=>{upd(x=>{x.weddingDate=document.getElementById("di").value;});setEditD(false);}} style={{padding:"7px 11px",borderRadius:9,background:"#E0BBE4",border:"none",cursor:"pointer"}}><Save size={14} color="#fff"/></button></div>
-                ):(
-                  <button onClick={()=>setEditD(true)} style={{marginTop:10,display:"flex",alignItems:"center",gap:5,background:"none",border:"none",cursor:"pointer",color:"#c4a0cc",fontSize:12}}><Edit2 size={12}/> {data.weddingDate}</button>
-                )}
+                {editD?<div style={{marginTop:12,display:"flex",gap:8}}><input type="date" defaultValue={data.weddingDate} id="di" style={{flex:1,padding:"7px 10px",borderRadius:9,border:"1px solid #E0BBE4",fontSize:13}}/><button onClick={()=>{upd(x=>{x.weddingDate=document.getElementById("di").value;});setEditD(false);}} style={{padding:"7px 11px",borderRadius:9,background:"#E0BBE4",border:"none",cursor:"pointer"}}><Save size={14} color="#fff"/></button></div>:
+                <button onClick={()=>setEditD(true)} style={{marginTop:10}}><Edit2 size={12}/> {formatDate(data.weddingDate)}</button>}
                 <div style={{position:"absolute",top:16,right:18,fontSize:30}}>💍</div>
               </div>
               <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
-                <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:10}}>Presupuesto Total</div>
-                <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:16}}><div className="serif" style={{fontSize:28,color:"#4a3a5c"}}>{fmt(data.budget)}</div><button onClick={()=>{const v=prompt("Nuevo presupuesto MXN:",data.budget);if(v&&!isNaN(v))upd(x=>{x.budget=+v;});}} style={{background:"none",border:"none",cursor:"pointer",color:"#ccc"}}><Edit2 size={13}/></button></div>
+                <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",marginBottom:10}}>Presupuesto Total</div>
+                <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:16}}><div className="serif" style={{fontSize:28,color:"#4a3a5c"}}>{fmt(data.budget)}</div><button onClick={()=>{const v=prompt("Nuevo presupuesto MXN:",data.budget);if(v&&!isNaN(v))upd(x=>{x.budget=+v;});}}><Edit2 size={13}/></button></div>
                 {[{l:"Gastado",v:spent,c:"#c77daa"},{l:"Estimado",v:estim,c:"#E0BBE4"},{l:"Disponible",v:data.budget-spent,c:"#B2AC88"}].map(r=>(
-                  <div key={r.l} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#888",marginBottom:4}}><span>{r.l}</span><span style={{fontWeight:500,color:"#555"}}>{fmt(r.v)}</span></div><div style={{height:5,borderRadius:3,background:"#f0e8f5"}}><div style={{height:"100%",borderRadius:3,background:r.c,width:`${Math.min(100,(r.v/data.budget)*100)}%`}}/></div></div>
+                  <div key={r.l} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#888",marginBottom:4}}><span>{r.l}</span><span>{fmt(r.v)}</span></div><div style={{height:5,background:"#f0e8f5"}}><div style={{height:"100%",background:r.c,width:`${Math.min(100,(r.v/data.budget)*100)}%`}}/></div></div>
                 ))}
               </div>
               <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
-                <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:10}}>Invitados</div>
-                <div className="serif" style={{fontSize:44,color:"#4a3a5c",fontWeight:300,marginBottom:14}}>{guestStats.total}</div>
+                <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",marginBottom:10}}>Invitados</div>
+                <div className="serif" style={{fontSize:44,color:"#4a3a5c",fontWeight:300}}>{guestStats.total}</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                  <div style={{background:"#B2AC8833",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{guestStats.confirmados}</div><div style={{fontSize:10,color:"#888"}}>Conf.</div></div>
-                  <div style={{background:"#FFD58033",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{guestStats.pendientes}</div><div style={{fontSize:10,color:"#888"}}>Pend.</div></div>
-                  <div style={{background:"#F4A5A533",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{guestStats.rechazados}</div><div style={{fontSize:10,color:"#888"}}>Rech.</div></div>
+                  <div><div>{guestStats.confirmados}</div><div>Conf.</div></div>
+                  <div><div>{guestStats.pendientes}</div><div>Pend.</div></div>
+                  <div><div>{guestStats.rechazados}</div><div>Rech.</div></div>
                 </div>
-                <div style={{fontSize:10,color:"#aaa",marginTop:12,textAlign:"center"}}>Datos desde Google Sheets</div>
+                <GuestByInviterChart guests={guestsList} />
               </div>
-              <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
-                <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:12}}>Colaboración ☁</div>
-                <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}><div style={{width:44,height:44,borderRadius:14,background:"rgba(224,187,228,.25)",display:"flex",alignItems:"center",justifyContent:"center"}}>{sync==="error"?<CloudOff size={22}/>:<Cloud size={22}/>}</div><div><div style={{fontSize:13,fontWeight:600,color:"#4a3a5c"}}>Supabase Realtime</div><div style={{fontSize:11,color:"#aaa",marginTop:2}}>wedding_state · id=1</div></div></div>
-                <div style={{fontSize:12,color:"#aaa",lineHeight:1.65,marginBottom:12}}>Cambios sincronizados automáticamente.</div>
-                <SyncBadge status={sync}/>
+              <div className="glass" style={{borderRadius:22,padding:"16px 20px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:32,height:32,borderRadius:14,background:"rgba(224,187,228,.25)",display:"flex",alignItems:"center",justifyContent:"center"}}>{sync==="error"?<CloudOff size={18}/>:<Cloud size={18}/>}</div>
+                  <div><div style={{fontSize:12,fontWeight:600,color:"#4a3a5c"}}>Supabase</div><SyncBadge status={sync}/></div>
+                </div>
               </div>
             </div>
-            <div className="glass" style={{borderRadius:22,padding:"26px 30px",marginBottom:22}}><div className="serif" style={{fontSize:24,color:"#4a3a5c",marginBottom:22}}>Project Health ✦</div><div style={{display:"flex",flexWrap:"wrap",gap:28,justifyContent:"space-around"}}>{cats.map((c,i)=><Ring key={c.id} pct={c.pct} color={COLORS[i]} sz={92} label={c.label} sub={`${c.tasks.filter(t=>t.done).length}/${c.tasks.length}`}/>)}</div></div>
-            <div className="glass" style={{borderRadius:22,padding:"26px 30px"}}><div className="serif" style={{fontSize:24,color:"#4a3a5c",marginBottom:18}}>Próximas Tareas ✦</div><div style={{display:"flex",flexDirection:"column",gap:10}}>
-              {data.categories.flatMap(c=>c.tasks.filter(t=>!t.done).map(t=>({...t,cat:c.label,cc:c.color}))).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,5).map(t=>(
-                <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderRadius:13,background:"rgba(255,255,255,.55)",border:"1px solid rgba(224,187,228,.2)"}}><div style={{width:10,height:10,borderRadius:"50%",background:t.cc}}/><div style={{flex:1}}><div style={{fontSize:14,color:"#4a3a5c"}}>{t.text}</div><div style={{fontSize:11,color:"#bbb",marginTop:2}}>{t.cat} · {t.date}</div></div><span style={{fontSize:10,padding:"3px 9px",borderRadius:20,background:t.priority==="alta"?"#F4A5A530":t.priority==="media"?"#FFD58030":"#B2AC8830"}}>{t.priority}</span></div>
-              ))}
-            </div></div>
+            <div className="glass" style={{borderRadius:22,padding:"26px 30px",marginBottom:22}}>
+              <div className="serif" style={{fontSize:24,color:"#4a3a5c",marginBottom:22}}>Project Health ✦</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:28,justifyContent:"space-around"}}>{cats.map((c,i)=><Ring key={c.id} pct={c.pct} color={COLORS[i]} sz={92} label={c.label} sub={`${c.tasks.filter(t=>t.done).length}/${c.tasks.length}`}/>)}</div>
+              <ExpensesByCategoryChart categories={data.categories} />
+            </div>
+            <div className="glass" style={{borderRadius:22,padding:"26px 30px"}}>
+              <div className="serif" style={{fontSize:24,color:"#4a3a5c",marginBottom:18}}>Próximas Tareas ✦</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {data.categories.flatMap(c=>c.tasks.filter(t=>!t.done).map(t=>({...t,cat:c.label,cc:c.color}))).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,5).map(t=>(
+                  <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderRadius:13,background:"rgba(255,255,255,.55)",border:"1px solid rgba(224,187,228,.2)"}}><div style={{width:10,height:10,borderRadius:"50%",background:t.cc}}/><div><div>{t.text}</div><div style={{fontSize:11,color:"#bbb"}}>{t.cat} · {formatDate(t.date)}</div></div><span style={{fontSize:10,padding:"3px 9px",borderRadius:20,background:t.priority==="alta"?"#F4A5A530":t.priority==="media"?"#FFD58030":"#B2AC8830"}}>{t.priority}</span></div>
+                ))}
+              </div>
+            </div>
             <VisionBoardCollage categories={data.categories} />
           </div>
         )}
@@ -489,7 +569,7 @@ export default function App() {
                         <div key={tk.id} style={{padding:"10px 12px",borderRadius:12,background:tk.done?"#B2AC8812":"rgba(255,255,255,.55)",border:"1px solid rgba(224,187,228,.2)"}}>
                           <div className="flex items-start gap-2">
                             <button onClick={()=>upd(x=>{const c=x.categories.find(c=>c.id===cat.id);const t=c.tasks.find(t=>t.id===tk.id);t.done=!t.done;})} style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${tk.done?"#B2AC88":"#ddd"}`,background:tk.done?"#B2AC88":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{tk.done&&<Check size={12} color="white" strokeWidth={3}/>}</button>
-                            <div style={{flex:1}}><div style={{fontSize:13,color:tk.done?"#bbb":"#4a3a5c",textDecoration:tk.done?"line-through":"none"}}>{tk.text}</div><div className="flex flex-wrap gap-2 items-center mt-1"><span style={{fontSize:11,color:"#ccc"}}>{tk.date}</span><span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:tk.priority==="alta"?"#F4A5A530":tk.priority==="media"?"#FFD58030":"#B2AC8830",color:tk.priority==="alta"?"#c05a5a":tk.priority==="media"?"#8a7230":"#5a6a45"}}>{tk.priority}</span><TaskDetailsForm task={tk} catId={cat.id} upd={upd} color={cat.color}/></div></div>
+                            <div style={{flex:1}}><div style={{fontSize:13,color:tk.done?"#bbb":"#4a3a5c",textDecoration:tk.done?"line-through":"none"}}>{tk.text}</div><div className="flex flex-wrap gap-2 items-center mt-1"><span style={{fontSize:11,color:"#ccc"}}>{formatDate(tk.date)}</span><span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:tk.priority==="alta"?"#F4A5A530":tk.priority==="media"?"#FFD58030":"#B2AC8830",color:tk.priority==="alta"?"#c05a5a":tk.priority==="media"?"#8a7230":"#5a6a45"}}>{tk.priority}</span><TaskDetailsForm task={tk} catId={cat.id} upd={upd} color={cat.color}/></div></div>
                             <div className="flex"><button onClick={()=>openEditTask(cat.id, tk)} className="text-gray-400 hover:text-[#7b4f8a] mr-1"><Edit2 size={13}/></button><button onClick={()=>upd(x=>{const c=x.categories.find(c=>c.id===cat.id);c.tasks=c.tasks.filter(t=>t.id!==tk.id);})} className="text-gray-400 hover:text-red-500"><Trash2 size={13}/></button></div>
                           </div>
                         </div>
@@ -507,70 +587,53 @@ export default function App() {
             </div>
           </div>
         )}
-        {tab === "invitados" && <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Invitados ✦</div><SyncBadge status={sync}/></div><ErrorBoundary><Suspense fallback={<div className="text-center py-8">Cargando módulo de invitados...</div>}><GuestManager /></Suspense></ErrorBoundary></div>}
-        {tab === "mesas" && <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Mesas ✦</div><SyncBadge status={sync}/></div><div className="glass rounded-2xl p-6 space-y-6"><TableConfig /><ErrorBoundary><Suspense fallback={<div className="text-center py-8">Cargando dashboard de mesas...</div>}><TableDashboard /></Suspense></ErrorBoundary></div></div>}
-        {tab === "finanzas" && <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Finanzas ✦</div><SyncBadge status={sync}/></div><FinancialBreakdown categories={data.categories} onPaymentAdded={()=>{upd(async x=>{await recalcBudgetRealFromPayments(x);});}}/></div>}
+        {tab === "invitados" && (
+          <div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Invitados ✦</div><SyncBadge status={sync}/></div>
+            <GuestManager />
+          </div>
+        )}
+        {tab === "mesas" && (
+          <div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Mesas ✦</div><SyncBadge status={sync}/></div>
+            <div className="glass rounded-2xl p-6 space-y-6"><TableConfig /><ErrorBoundary><Suspense fallback={<div className="text-center py-8">Cargando...</div>}><TableDashboard /></Suspense></ErrorBoundary></div>
+          </div>
+        )}
+        {tab === "finanzas" && (
+          <div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Finanzas ✦</div><SyncBadge status={sync}/></div>
+            <FinancialBreakdown categories={data.categories} onPaymentAdded={()=>{upd(async x=>{await recalcBudgetRealFromPayments(x);});}}/>
+          </div>
+        )}
+        {tab === "cotizaciones" && (
+          <div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Cotizaciones ✦</div><SyncBadge status={sync}/></div>
+            <QuotesManager categories={data.categories} />
+          </div>
+        )}
         {tab === "timeline" && (
           <div className="fade">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
-              <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Día B — Cronograma de preparativos ✦</div>
-              <SyncBadge status={sync}/>
-            </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Día B — Cronograma de preparativos ✦</div><SyncBadge status={sync}/></div>
             <div style={{maxWidth:640,margin:"0 auto",position:"relative"}}>
               <div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)",borderRadius:1}}/>
-              {data.timeline.map((item,i)=>{
-                const TI=IconMap[item.icon]||Star;
-                return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}>
-                  <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}>
-                    <div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div>
-                  </div>
-                  <div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}>
-                    <input value={item.time} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).time=e.target.value})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/>
-                    <input value={item.activity} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).activity=e.target.value})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/>
-                    <button onClick={()=>upd(x=>{x.timeline=x.timeline.filter(t=>t.id!==item.id)})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",flexShrink:0}}><Trash2 size={13}/></button>
-                  </div>
-                </div>;
-              })}
-              <div style={{display:"flex",gap:20,alignItems:"center"}}>
-                <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}>
-                  <div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div>
-                </div>
-                <TimelineForm upd={upd} target="timeline" />
-              </div>
+              {data.timeline.map((item,i)=>{const TI=IconMap[item.icon]||Star;return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}><div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div></div><div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}><input value={item.time} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).time=e.target.value;})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/><input value={item.activity} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).activity=e.target.value;})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/><button onClick={()=>upd(x=>{x.timeline=x.timeline.filter(t=>t.id!==item.id);})}><Trash2 size={13}/></button></div></div>})}
+              <div style={{display:"flex",gap:20,alignItems:"center"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}><div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div></div><TimelineForm upd={upd} target="timeline"/></div>
             </div>
           </div>
         )}
         {tab === "dday" && (
           <div className="fade">
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
-              <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>D‑Day — Cronograma del evento ✦</div>
-              <SyncBadge status={sync}/>
-            </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>D‑Day — Cronograma del evento ✦</div><SyncBadge status={sync}/></div>
             <div style={{maxWidth:640,margin:"0 auto",position:"relative"}}>
               <div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)",borderRadius:1}}/>
-              {data.ddayTimeline.map((item,i)=>{
-                const TI=IconMap[item.icon]||Star;
-                return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}>
-                  <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}>
-                    <div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div>
-                  </div>
-                  <div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}>
-                    <input value={item.time} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).time=e.target.value})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/>
-                    <input value={item.activity} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).activity=e.target.value})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/>
-                    <button onClick={()=>upd(x=>{x.ddayTimeline=x.ddayTimeline.filter(t=>t.id!==item.id)})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",flexShrink:0}}><Trash2 size={13}/></button>
-                  </div>
-                </div>;
-              })}
-              <div style={{display:"flex",gap:20,alignItems:"center"}}>
-                <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}>
-                  <div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div>
-                </div>
-                <TimelineForm upd={upd} target="ddayTimeline" />
-              </div>
+              {data.ddayTimeline.map((item,i)=>{const TI=IconMap[item.icon]||Star;return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}><div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div></div><div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}><input value={item.time} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).time=e.target.value;})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/><input value={item.activity} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).activity=e.target.value;})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/><button onClick={()=>upd(x=>{x.ddayTimeline=x.ddayTimeline.filter(t=>t.id!==item.id);})}><Trash2 size={13}/></button></div></div>})}
+              <div style={{display:"flex",gap:20,alignItems:"center"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}><div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div></div><TimelineForm upd={upd} target="ddayTimeline"/></div>
             </div>
           </div>
         )}
-        {tab === "postits" && <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Post-its ✦</div><SyncBadge status={sync}/></div><PostItBoard /></div>}
+        {tab === "postits" && (
+          <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Post-its ✦</div><SyncBadge status={sync}/></div><PostItBoard /></div>
+        )}
       </div>
 
       {/* Modales */}
