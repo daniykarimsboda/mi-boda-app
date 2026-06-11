@@ -17,7 +17,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const ROW_ID = 1;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Función para inicializar detalles en tareas que no los tengan
+// Inicializar detalles de tareas
 const initTaskDetails = (categories) => {
   categories.forEach(cat => {
     cat.tasks.forEach(task => {
@@ -100,8 +100,7 @@ const INIT = {
 
 function safeState(raw) {
   if (raw && Array.isArray(raw.categories) && raw.categories.length > 0) {
-    const withDetails = initTaskDetails(raw.categories);
-    return { ...raw, categories: withDetails };
+    return { ...raw, categories: initTaskDetails(raw.categories) };
   }
   return initTaskDetails(INIT.categories);
 }
@@ -140,7 +139,7 @@ function SyncBadge({ status }) {
   const m = M[status] || M.idle;
   return (
     <span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:20,
-      background:m.bg,border:`1px solid ${m.bd}`,color:m.c,fontSize:12,fontWeight:500,transition:"all .3s",whiteSpace:"nowrap"}}>
+      background:m.bg,border:`1px solid ${m.bd}`,color:m.c,fontSize:12,fontWeight:500,whiteSpace:"nowrap"}}>
       {m.icon} {m.text}
     </span>
   );
@@ -165,7 +164,7 @@ function Ring({ pct, color, sz=88, label, sub }) {
   );
 }
 
-// Componente de detalles de tarea (sin método de pago, con campo "cantidad")
+// Componente de detalles de tarea (sin método de pago, con campo "Cantidad")
 function TaskDetailsForm({ task, catId, upd, color }) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -246,50 +245,15 @@ function TaskDetailsForm({ task, catId, upd, color }) {
   return (
     <div className="mt-2 p-3 rounded-xl bg-white/50 border border-[#E0BBE4]/30 space-y-2">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        <input
-          type="text"
-          placeholder="Concepto"
-          value={formData.concepto}
-          onChange={e => updateField("concepto", e.target.value)}
-          className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
-        />
-        <input
-          type="text"
-          placeholder="Característica"
-          value={formData.caracteristica}
-          onChange={e => updateField("caracteristica", e.target.value)}
-          className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
-        />
-        <input
-          type="text"
-          placeholder="Precio Unitario"
-          value={formData.precioUnitario}
-          onChange={e => updateField("precioUnitario", e.target.value)}
-          className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
-        />
-        <input
-          type="text"
-          placeholder="Cantidad"
-          value={formData.cantidad}
-          onChange={e => {
-            let val = e.target.value;
-            if (val === "" || /^\d+$/.test(val)) {
-              updateField("cantidad", val);
-            }
-          }}
-          className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
-        />
-        <div className="flex items-center gap-2 text-sm font-medium">
-          Total: ${formData.total.toLocaleString()}
-        </div>
+        <input type="text" placeholder="Concepto" value={formData.concepto} onChange={e => updateField("concepto", e.target.value)} className="px-2 py-1 rounded-lg border border-gray-200 text-sm" />
+        <input type="text" placeholder="Característica" value={formData.caracteristica} onChange={e => updateField("caracteristica", e.target.value)} className="px-2 py-1 rounded-lg border border-gray-200 text-sm" />
+        <input type="text" placeholder="Precio Unitario" value={formData.precioUnitario} onChange={e => updateField("precioUnitario", e.target.value)} className="px-2 py-1 rounded-lg border border-gray-200 text-sm" />
+        <input type="text" placeholder="Cantidad" value={formData.cantidad} onChange={e => { let val = e.target.value; if (val === "" || /^\d+$/.test(val)) updateField("cantidad", val); }} className="px-2 py-1 rounded-lg border border-gray-200 text-sm" />
+        <div className="flex items-center gap-2 text-sm font-medium">Total: ${formData.total.toLocaleString()}</div>
       </div>
       <div className="flex justify-end gap-2">
-        <button onClick={() => setOpen(false)} className="px-3 py-1 rounded-full bg-gray-200 text-gray-700 text-sm">
-          Cancelar
-        </button>
-        <button onClick={saveDetails} className="px-3 py-1 rounded-full bg-[#E0BBE4] text-white text-sm">
-          Guardar detalles
-        </button>
+        <button onClick={() => setOpen(false)} className="px-3 py-1 rounded-full bg-gray-200 text-gray-700 text-sm">Cancelar</button>
+        <button onClick={saveDetails} className="px-3 py-1 rounded-full bg-[#E0BBE4] text-white text-sm">Guardar detalles</button>
       </div>
     </div>
   );
@@ -308,7 +272,18 @@ export default function App() {
   const [newCatName, setNewCatName] = useState("");
   const [newCatIcon, setNewCatIcon] = useState("Heart");
   const [newCatBudget, setNewCatBudget] = useState("");
+  // Estados para editar categoría
+  const [editCatModal, setEditCatModal] = useState(null);
+  const [editCatName, setEditCatName] = useState("");
+  const [editCatIcon, setEditCatIcon] = useState("");
+  const [editCatBudget, setEditCatBudget] = useState("");
+  // Estados para editar tarea
+  const [editTaskModal, setEditTaskModal] = useState(null);
+  const [editTaskText, setEditTaskText] = useState("");
+  const [editTaskDate, setEditTaskDate] = useState("");
+  const [editTaskPriority, setEditTaskPriority] = useState("");
 
+  // Cargar estadísticas de invitados
   const loadGuestStats = async () => {
     try {
       const { data: guests, error } = await sb.from("guests").select("rsvp");
@@ -321,34 +296,31 @@ export default function App() {
     } catch (e) { console.warn(e); }
   };
 
+  // Recalcular budgetReal desde pagos
   const recalcBudgetRealFromPayments = async (x) => {
     const { data: allPayments } = await sb.from("task_payments").select("*");
     const sums = {};
-    allPayments?.forEach(p => {
-      sums[p.category_id] = (sums[p.category_id] || 0) + p.amount;
-    });
-    x.categories.forEach(cat => {
-      cat.budgetReal = sums[cat.id] || 0;
-    });
+    allPayments?.forEach(p => { sums[p.category_id] = (sums[p.category_id] || 0) + p.amount; });
+    x.categories.forEach(cat => { cat.budgetReal = sums[cat.id] || 0; });
     return x;
   };
 
-  const createNewCategory = async () => {
+  // Nueva categoría
+  const createNewCategory = () => {
     if (!newCatName.trim()) return;
     const randomColor = COLORS[Math.floor(Math.random() * COLORS.length)];
     const newId = `cat_${Date.now()}`;
-    const newCat = {
-      id: newId,
-      icon: newCatIcon,
-      label: newCatName.trim(),
-      color: randomColor,
-      budgetEstimated: parseFloat(newCatBudget) || 0,
-      budgetReal: 0,
-      tasks: [],
-      visionItems: [],
-    };
     upd(x => {
-      x.categories.push(newCat);
+      x.categories.push({
+        id: newId,
+        icon: newCatIcon,
+        label: newCatName.trim(),
+        color: randomColor,
+        budgetEstimated: parseFloat(newCatBudget) || 0,
+        budgetReal: 0,
+        tasks: [],
+        visionItems: [],
+      });
     });
     setShowNewCatModal(false);
     setNewCatName("");
@@ -356,6 +328,55 @@ export default function App() {
     setNewCatBudget("");
   };
 
+  // Eliminar categoría
+  const deleteCategory = (catId) => {
+    if (window.confirm("¿Eliminar esta categoría? Se perderán todas las tareas y detalles asociados.")) {
+      upd(x => { x.categories = x.categories.filter(c => c.id !== catId); });
+    }
+  };
+
+  // Abrir modal editar categoría
+  const openEditCategory = (cat) => {
+    setEditCatModal(cat);
+    setEditCatName(cat.label);
+    setEditCatIcon(cat.icon);
+    setEditCatBudget(cat.budgetEstimated.toString());
+  };
+  const saveEditCategory = () => {
+    if (!editCatModal) return;
+    upd(x => {
+      const cat = x.categories.find(c => c.id === editCatModal.id);
+      if (cat) {
+        cat.label = editCatName;
+        cat.icon = editCatIcon;
+        cat.budgetEstimated = parseFloat(editCatBudget) || 0;
+      }
+    });
+    setEditCatModal(null);
+  };
+
+  // Editar tarea
+  const openEditTask = (catId, task) => {
+    setEditTaskModal({ catId, task });
+    setEditTaskText(task.text);
+    setEditTaskDate(task.date);
+    setEditTaskPriority(task.priority);
+  };
+  const saveEditTask = () => {
+    if (!editTaskModal) return;
+    upd(x => {
+      const cat = x.categories.find(c => c.id === editTaskModal.catId);
+      const task = cat.tasks.find(t => t.id === editTaskModal.task.id);
+      if (task) {
+        task.text = editTaskText;
+        task.date = editTaskDate;
+        task.priority = editTaskPriority;
+      }
+    });
+    setEditTaskModal(null);
+  };
+
+  // Carga inicial y suscripciones
   useEffect(() => {
     (async () => {
       try {
@@ -371,7 +392,6 @@ export default function App() {
           await sb.from("wedding_state").upsert({ id: ROW_ID, data: INIT });
           setData(INIT);
         }
-        // Recalcular budgetReal desde pagos existentes
         const updated = await recalcBudgetRealFromPayments(safe);
         setData(updated);
         localStorage.setItem("wos5", JSON.stringify(updated));
@@ -383,22 +403,18 @@ export default function App() {
 
   useEffect(() => {
     const channel = sb.channel("wedding_realtime")
-      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"wedding_state", filter:`id=eq.${ROW_ID}` },
-        (payload) => {
-          if (payload.new?.data) {
-            const safe = safeState(payload.new.data);
-            setData(safe);
-            localStorage.setItem("wos5", JSON.stringify(safe));
-            setSync("saved");
-            setTimeout(() => setSync("idle"), 2500);
-          }
-        })
+      .on("postgres_changes", { event:"UPDATE", schema:"public", table:"wedding_state", filter:`id=eq.${ROW_ID}` }, (payload) => {
+        if (payload.new?.data) {
+          const safe = safeState(payload.new.data);
+          setData(safe);
+          localStorage.setItem("wos5", JSON.stringify(safe));
+          setSync("saved");
+          setTimeout(() => setSync("idle"), 2500);
+        }
+      })
       .on("postgres_changes", { event:"*", schema:"public", table:"guests" }, () => loadGuestStats())
       .on("postgres_changes", { event:"*", schema:"public", table:"task_payments" }, async () => {
-        // Recalcular budgetReal cuando cambien los pagos
-        upd(async (x) => {
-          await recalcBudgetRealFromPayments(x);
-        });
+        upd(async (x) => { await recalcBudgetRealFromPayments(x); });
       })
       .subscribe();
     return () => sb.removeChannel(channel);
@@ -414,7 +430,6 @@ export default function App() {
   }, []);
 
   const debouncedPush = useDebounce(pushToCloud, 1000);
-
   const upd = useCallback((fn) => {
     setData(prev => {
       const next = JSON.parse(JSON.stringify(prev));
@@ -428,26 +443,21 @@ export default function App() {
 
   const spent = data.categories.reduce((a,c) => a + (c.budgetReal || 0), 0);
   const estim = data.categories.reduce((a,c) => a + (c.budgetEstimated || 0), 0);
-  const d     = daysUntil(data.weddingDate);
-  const cats  = data.categories.map(c => ({
-    ...c, pct: c.tasks.length ? Math.round(c.tasks.filter(t=>t.done).length/c.tasks.length*100) : 0
-  }));
+  const d = daysUntil(data.weddingDate);
+  const cats = data.categories.map(c => ({ ...c, pct: c.tasks.length ? Math.round(c.tasks.filter(t=>t.done).length/c.tasks.length*100) : 0 }));
 
   const share = () => {
     navigator.clipboard?.writeText(window.location.href).catch(()=>{});
     setToast(true); setTimeout(() => setToast(false), 3000);
   };
-
   const exportData = () => {
     const lines = [
       `💍 ${data.coupleName} — Wedding OS`,
       `Fecha: ${data.weddingDate} | Días: ${d}`,"",
       `PRESUPUESTO: ${fmt(data.budget)} | Gastado: ${fmt(spent)}`,"",
       "CATEGORÍAS:",...data.categories.map(c=>`• ${c.label}: ${c.tasks.filter(t=>t.done).length}/${c.tasks.length} | ${fmt(c.budgetReal)}`),
-      "","INVITADOS (desde Google Sheets):",
-      `Confirmados: ${guestStats.confirmados}`,
-      `Pendientes: ${guestStats.pendientes}`,
-      "","TIMELINE:",...data.timeline.map(t=>`  ${t.time}  ${t.activity}`),
+      "","INVITADOS:",`Confirmados: ${guestStats.confirmados}`,`Pendientes: ${guestStats.pendientes}`,"",
+      "TIMELINE:",...data.timeline.map(t=>`  ${t.time}  ${t.activity}`),
     ].join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([lines],{type:"text/plain"}));
@@ -481,7 +491,7 @@ export default function App() {
         </div>}
         <nav style={{flex:1,padding:"14px 8px",display:"flex",flexDirection:"column",gap:4}}>
           {nav.map(({id,l,I}) => { const active=tab===id; return (
-            <button key={id} onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 12px",borderRadius:12,background:active?"rgba(224,187,228,.3)":"transparent",border:active?"1px solid rgba(224,187,228,.5)":"1px solid transparent",cursor:"pointer",color:active?"#7b4f8a":"#8a8aaa",fontWeight:active?500:400,fontSize:14,transition:"all .2s",textAlign:"left"}}>
+            <button key={id} onClick={()=>setTab(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 12px",borderRadius:12,background:active?"rgba(224,187,228,.3)":"transparent",border:active?"1px solid rgba(224,187,228,.5)":"1px solid transparent",cursor:"pointer",color:active?"#7b4f8a":"#8a8aaa",fontWeight:active?500:400,fontSize:14,textAlign:"left"}}>
               <I size={18} strokeWidth={active?2:1.5}/>{sidebarOpen&&l}
             </button>
           );})}
@@ -498,73 +508,51 @@ export default function App() {
         {/* DASHBOARD */}
         {tab==="dashboard" && <div className="fade">
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:28,flexWrap:"wrap",gap:12}}>
-            <div>
-              <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300,lineHeight:1.15}}>Bienvenida, <span style={{fontStyle:"italic",color:"#B2AC88"}}>{data.coupleName.split("&")[0].trim()} ✦</span></div>
-              <div style={{fontSize:15,color:"#aaa",marginTop:6}}>Todo en un solo lugar para su día perfecto</div>
-            </div>
+            <div><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Bienvenida, <span style={{fontStyle:"italic",color:"#B2AC88"}}>{data.coupleName.split("&")[0].trim()} ✦</span></div><div style={{fontSize:15,color:"#aaa",marginTop:6}}>Todo en un solo lugar para su día perfecto</div></div>
             <SyncBadge status={sync}/>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(215px,1fr))",gap:16,marginBottom:24}}>
-            <div className="glass" style={{borderRadius:22,padding:"22px 24px",position:"relative",overflow:"hidden"}}>
+            <div className="glass" style={{borderRadius:22,padding:"22px 24px",position:"relative"}}>
               <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:10}}>Cuenta Regresiva</div>
-              <div className="serif" style={{fontSize:56,color:"#4a3a5c",fontWeight:300,lineHeight:1}}>{d}</div>
+              <div className="serif" style={{fontSize:56,color:"#4a3a5c",fontWeight:300}}>{d}</div>
               <div style={{fontSize:13,color:"#bbb",marginTop:6}}>días restantes</div>
-              {editD?(
-                <div style={{marginTop:12,display:"flex",gap:8}}>
-                  <input type="date" defaultValue={data.weddingDate} id="di" style={{flex:1,padding:"7px 10px",borderRadius:9,border:"1px solid #E0BBE4",fontSize:13}}/>
-                  <button onClick={()=>{upd(x=>{x.weddingDate=document.getElementById("di").value;});setEditD(false);}} style={{padding:"7px 11px",borderRadius:9,background:"#E0BBE4",border:"none",cursor:"pointer"}}><Save size={14} color="#fff"/></button>
-                </div>
-              ):(
-                <button onClick={()=>setEditD(true)} style={{marginTop:10,display:"flex",alignItems:"center",gap:5,background:"none",border:"none",cursor:"pointer",color:"#c4a0cc",fontSize:12}}><Edit2 size={12}/> {data.weddingDate}</button>
-              )}
+              {editD?<div style={{marginTop:12,display:"flex",gap:8}}><input type="date" defaultValue={data.weddingDate} id="di" style={{flex:1,padding:"7px 10px",borderRadius:9,border:"1px solid #E0BBE4",fontSize:13}}/><button onClick={()=>{upd(x=>{x.weddingDate=document.getElementById("di").value;});setEditD(false);}} style={{padding:"7px 11px",borderRadius:9,background:"#E0BBE4",border:"none",cursor:"pointer"}}><Save size={14} color="#fff"/></button></div>:
+              <button onClick={()=>setEditD(true)} style={{marginTop:10,display:"flex",alignItems:"center",gap:5,background:"none",border:"none",cursor:"pointer",color:"#c4a0cc",fontSize:12}}><Edit2 size={12}/> {data.weddingDate}</button>}
               <div style={{position:"absolute",top:16,right:18,fontSize:30}}>💍</div>
             </div>
             <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
               <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:10}}>Presupuesto Total</div>
-              <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:16}}>
-                <div className="serif" style={{fontSize:28,color:"#4a3a5c"}}>{fmt(data.budget)}</div>
-                <button onClick={()=>{const v=prompt("Nuevo presupuesto MXN:",data.budget);if(v&&!isNaN(v))upd(x=>{x.budget=+v;});}} style={{background:"none",border:"none",cursor:"pointer",color:"#ccc"}}><Edit2 size={13}/></button>
-              </div>
+              <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:16}}><div className="serif" style={{fontSize:28,color:"#4a3a5c"}}>{fmt(data.budget)}</div><button onClick={()=>{const v=prompt("Nuevo presupuesto MXN:",data.budget);if(v&&!isNaN(v))upd(x=>{x.budget=+v;});}} style={{background:"none",border:"none",cursor:"pointer",color:"#ccc"}}><Edit2 size={13}/></button></div>
               {[{l:"Gastado",v:spent,c:"#c77daa"},{l:"Estimado",v:estim,c:"#E0BBE4"},{l:"Disponible",v:data.budget-spent,c:"#B2AC88"}].map(r=>(
-                <div key={r.l} style={{marginBottom:8}}>
-                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#888",marginBottom:4}}><span>{r.l}</span><span style={{fontWeight:500,color:"#555"}}>{fmt(r.v)}</span></div>
-                  <div style={{height:5,borderRadius:3,background:"#f0e8f5"}}><div style={{height:"100%",borderRadius:3,background:r.c,width:`${Math.min(100,(r.v/data.budget)*100)}%`,transition:"width .8s"}}/></div>
-                </div>
+                <div key={r.l} style={{marginBottom:8}}><div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"#888",marginBottom:4}}><span>{r.l}</span><span>{fmt(r.v)}</span></div><div style={{height:5,borderRadius:3,background:"#f0e8f5"}}><div style={{height:"100%",borderRadius:3,background:r.c,width:`${Math.min(100,(r.v/data.budget)*100)}%`}}/></div></div>
               ))}
             </div>
             <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
               <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:10}}>Invitados</div>
               <div className="serif" style={{fontSize:44,color:"#4a3a5c",fontWeight:300,marginBottom:14}}>{guestStats.total}</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-                <div style={{background:"#B2AC8833",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{guestStats.confirmados}</div><div style={{fontSize:10,color:"#888"}}>Conf.</div></div>
-                <div style={{background:"#FFD58033",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{guestStats.pendientes}</div><div style={{fontSize:10,color:"#888"}}>Pend.</div></div>
-                <div style={{background:"#F4A5A533",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,fontWeight:700,color:"#4a3a5c"}}>{guestStats.rechazados}</div><div style={{fontSize:10,color:"#888"}}>Rech.</div></div>
+                <div style={{background:"#B2AC8833",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,color:"#4a3a5c"}}>{guestStats.confirmados}</div><div style={{fontSize:10,color:"#888"}}>Conf.</div></div>
+                <div style={{background:"#FFD58033",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,color:"#4a3a5c"}}>{guestStats.pendientes}</div><div style={{fontSize:10,color:"#888"}}>Pend.</div></div>
+                <div style={{background:"#F4A5A533",borderRadius:11,padding:"9px 6px",textAlign:"center"}}><div style={{fontSize:22,color:"#4a3a5c"}}>{guestStats.rechazados}</div><div style={{fontSize:10,color:"#888"}}>Rech.</div></div>
               </div>
-              <div style={{fontSize:10,color:"#aaa",marginTop:12,textAlign:"center"}}>Datos desde Google Sheets</div>
             </div>
             <div className="glass" style={{borderRadius:22,padding:"22px 24px"}}>
               <div style={{fontSize:11,fontWeight:500,color:"#B2AC88",textTransform:"uppercase",letterSpacing:1.6,marginBottom:12}}>Colaboración ☁</div>
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-                <div style={{width:44,height:44,borderRadius:14,background:"rgba(224,187,228,.25)",display:"flex",alignItems:"center",justifyContent:"center"}}>{sync==="error"?<CloudOff size={22} color="#F4A5A5"/>:<Cloud size={22} color="#B2AC88"/>}</div>
-                <div><div style={{fontSize:13,fontWeight:600,color:"#4a3a5c"}}>Supabase Realtime</div><div style={{fontSize:11,color:"#aaa",marginTop:2}}>wedding_state · id=1</div></div>
-              </div>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}><div style={{width:44,height:44,borderRadius:14,background:"rgba(224,187,228,.25)",display:"flex",alignItems:"center",justifyContent:"center"}}>{sync==="error"?<CloudOff size={22} color="#F4A5A5"/>:<Cloud size={22} color="#B2AC88"/>}</div><div><div style={{fontSize:13,fontWeight:600,color:"#4a3a5c"}}>Supabase Realtime</div><div style={{fontSize:11,color:"#aaa",marginTop:2}}>wedding_state · id=1</div></div></div>
               <div style={{fontSize:12,color:"#aaa",lineHeight:1.65,marginBottom:12}}>Cambios sincronizados automáticamente.</div>
               <SyncBadge status={sync}/>
             </div>
           </div>
           <div className="glass" style={{borderRadius:22,padding:"26px 30px",marginBottom:22}}>
             <div className="serif" style={{fontSize:24,color:"#4a3a5c",marginBottom:22}}>Project Health ✦</div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:28,justifyContent:"space-around"}}>
-              {cats.map((c,i)=><Ring key={c.id} pct={c.pct} color={COLORS[i]} sz={92} label={c.label} sub={`${c.tasks.filter(t=>t.done).length}/${c.tasks.length}`}/>)}
-            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:28,justifyContent:"space-around"}}>{cats.map((c,i)=><Ring key={c.id} pct={c.pct} color={COLORS[i]} sz={92} label={c.label} sub={`${c.tasks.filter(t=>t.done).length}/${c.tasks.length}`}/>)}</div>
           </div>
           <div className="glass" style={{borderRadius:22,padding:"26px 30px"}}>
             <div className="serif" style={{fontSize:24,color:"#4a3a5c",marginBottom:18}}>Próximas Tareas ✦</div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               {data.categories.flatMap(c=>c.tasks.filter(t=>!t.done).map(t=>({...t,cat:c.label,cc:c.color}))).sort((a,b)=>new Date(a.date)-new Date(b.date)).slice(0,6).map(t=>(
                 <div key={t.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 16px",borderRadius:13,background:"rgba(255,255,255,.55)",border:"1px solid rgba(224,187,228,.2)"}}>
-                  <div style={{width:10,height:10,borderRadius:"50%",background:t.cc,flexShrink:0}}/>
-                  <div style={{flex:1}}><div style={{fontSize:14,color:"#4a3a5c"}}>{t.text}</div><div style={{fontSize:11,color:"#bbb",marginTop:2}}>{t.cat} · {t.date}</div></div>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:t.cc}}/><div style={{flex:1}}><div style={{fontSize:14,color:"#4a3a5c"}}>{t.text}</div><div style={{fontSize:11,color:"#bbb",marginTop:2}}>{t.cat} · {t.date}</div></div>
                   <span style={{fontSize:10,padding:"3px 9px",borderRadius:20,background:t.priority==="alta"?"#F4A5A530":t.priority==="media"?"#FFD58030":"#B2AC8830",color:t.priority==="alta"?"#c05a5a":t.priority==="media"?"#8a7230":"#5a6a45"}}>{t.priority}</span>
                 </div>
               ))}
@@ -578,92 +566,47 @@ export default function App() {
             <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Categorías <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
             <SyncBadge status={sync}/>
           </div>
-          <div className="flex justify-end mb-4">
-            <button onClick={() => setShowNewCatModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#E0BBE4]/30 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/50 transition">
-              <Plus size={16} /> Agregar Categoría
-            </button>
-          </div>
+          <div className="flex justify-end mb-4"><button onClick={()=>setShowNewCatModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#E0BBE4]/30 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/50 transition"><Plus size={16}/> Agregar Categoría</button></div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             {cats.map((cat)=>{
               const CI=IconMap[cat.icon]||Sparkles, open=exCat===cat.id, diff=cat.budgetEstimated-cat.budgetReal;
               return <div key={cat.id} className="glass" style={{borderRadius:20,overflow:"hidden"}}>
-                <button onClick={()=>setExCat(open?null:cat.id)} style={{width:"100%",display:"flex",alignItems:"center",gap:14,padding:"18px 22px",background:"none",border:"none",cursor:"pointer",textAlign:"left"}}>
-                  <div style={{width:42,height:42,borderRadius:13,background:cat.color+"55",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><CI size={20} color={cat.color} strokeWidth={1.5}/></div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:16,fontWeight:500,color:"#4a3a5c"}}>{cat.label}</div>
-                    <div style={{display:"flex",gap:10,alignItems:"center",marginTop:5}}>
-                      <div style={{width:90,height:5,borderRadius:3,background:"#f0e8f5",flexShrink:0}}><div style={{height:"100%",borderRadius:3,background:cat.color,width:`${cat.pct}%`}}/></div>
-                      <span style={{fontSize:12,color:"#bbb"}}>{cat.pct}%</span>
+                <div className="flex items-center justify-between w-full">
+                  <button onClick={()=>setExCat(open?null:cat.id)} className="flex flex-1 items-center gap-14 p-4">
+                    <div style={{width:42,height:42,borderRadius:13,background:cat.color+"55",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><CI size={20} color={cat.color} strokeWidth={1.5}/></div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:16,fontWeight:500,color:"#4a3a5c"}}>{cat.label}</div>
+                      <div style={{display:"flex",gap:10,alignItems:"center",marginTop:5}}><div style={{width:90,height:5,borderRadius:3,background:"#f0e8f5"}}><div style={{height:"100%",borderRadius:3,background:cat.color,width:`${cat.pct}%`}}/></div><span style={{fontSize:12,color:"#bbb"}}>{cat.pct}%</span></div>
                     </div>
-                  </div>
-                  <div style={{display:"flex",gap:16,alignItems:"center",flexShrink:0}}>
-                    <div style={{textAlign:"right"}}><div style={{fontSize:14,fontWeight:500,color:"#4a3a5c"}}>{fmt(cat.budgetReal)}</div><div style={{fontSize:11,color:diff>=0?"#7a9a6a":"#c05a5a"}}>{diff>=0?"↓":"↑"} {fmt(Math.abs(diff))}</div></div>
-                    {open?<ChevronUp size={18} color="#aaa"/>:<ChevronDown size={18} color="#aaa"/>}
-                  </div>
-                </button>
+                    <div style={{display:"flex",gap:16,alignItems:"center",flexShrink:0}}><div style={{textAlign:"right"}}><div style={{fontSize:14,fontWeight:500,color:"#4a3a5c"}}>{fmt(cat.budgetReal)}</div><div style={{fontSize:11,color:diff>=0?"#7a9a6a":"#c05a5a"}}>{diff>=0?"↓":"↑"} {fmt(Math.abs(diff))}</div></div>{open?<ChevronUp size={18} color="#aaa"/>:<ChevronDown size={18} color="#aaa"/>}</div>
+                  </button>
+                  <div className="flex gap-1 pr-2"><button onClick={()=>openEditCategory(cat)} className="p-1 text-gray-400 hover:text-[#7b4f8a]"><Edit2 size={16}/></button><button onClick={()=>deleteCategory(cat.id)} className="p-1 text-gray-400 hover:text-red-500"><Trash2 size={16}/></button></div>
+                </div>
                 {open && <div style={{padding:"4px 22px 24px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:500,color:"#9b8ab4",marginBottom:12,textTransform:"uppercase",letterSpacing:1.2}}>Checklist</div>
-                    <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                      {cat.tasks.map(tk=>(
-                        <div key={tk.id} style={{padding:"10px 12px",borderRadius:12,background:tk.done?"#B2AC8812":"rgba(255,255,255,.55)",border:"1px solid rgba(224,187,228,.2)"}}>
-                          <div className="flex items-start gap-2">
-                            <button onClick={()=>upd(x=>{
-                              const c = x.categories.find(c=>c.id===cat.id);
-                              const t = c.tasks.find(t=>t.id===tk.id);
-                              t.done = !t.done;
-                            })} style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${tk.done?"#B2AC88":"#ddd"}`,background:tk.done?"#B2AC88":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
-                              {tk.done&&<Check size={12} color="white" strokeWidth={3}/>}
-                            </button>
-                            <div style={{flex:1}}>
-                              <div style={{fontSize:13,color:tk.done?"#bbb":"#4a3a5c",textDecoration:tk.done?"line-through":"none"}}>{tk.text}</div>
-                              <div className="flex flex-wrap gap-2 items-center mt-1">
-                                <span style={{fontSize:11,color:"#ccc"}}>{tk.date}</span>
-                                <span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:tk.priority==="alta"?"#F4A5A530":tk.priority==="media"?"#FFD58030":"#B2AC8830",color:tk.priority==="alta"?"#c05a5a":tk.priority==="media"?"#8a7230":"#5a6a45"}}>{tk.priority}</span>
-                                <TaskDetailsForm task={tk} catId={cat.id} upd={upd} color={cat.color} />
-                              </div>
-                            </div>
-                            <button onClick={()=>upd(x=>{const c=x.categories.find(c=>c.id===cat.id);c.tasks=c.tasks.filter(t=>t.id!==tk.id);})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",padding:2,flexShrink:0}}><Trash2 size={13}/></button>
-                          </div>
+                  <div><div style={{fontSize:12,fontWeight:500,color:"#9b8ab4",marginBottom:12,textTransform:"uppercase",letterSpacing:1.2}}>Checklist</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {cat.tasks.map(tk=>(
+                      <div key={tk.id} style={{padding:"10px 12px",borderRadius:12,background:tk.done?"#B2AC8812":"rgba(255,255,255,.55)",border:"1px solid rgba(224,187,228,.2)"}}>
+                        <div className="flex items-start gap-2">
+                          <button onClick={()=>upd(x=>{const c=x.categories.find(c=>c.id===cat.id);const t=c.tasks.find(t=>t.id===tk.id);t.done=!t.done;})} style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${tk.done?"#B2AC88":"#ddd"}`,background:tk.done?"#B2AC88":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{tk.done&&<Check size={12} color="white" strokeWidth={3}/>}</button>
+                          <div style={{flex:1}}><div style={{fontSize:13,color:tk.done?"#bbb":"#4a3a5c",textDecoration:tk.done?"line-through":"none"}}>{tk.text}</div>
+                          <div className="flex flex-wrap gap-2 items-center mt-1"><span style={{fontSize:11,color:"#ccc"}}>{tk.date}</span><span style={{fontSize:10,padding:"1px 7px",borderRadius:20,background:tk.priority==="alta"?"#F4A5A530":tk.priority==="media"?"#FFD58030":"#B2AC8830",color:tk.priority==="alta"?"#c05a5a":tk.priority==="media"?"#8a7230":"#5a6a45"}}>{tk.priority}</span><TaskDetailsForm task={tk} catId={cat.id} upd={upd} color={cat.color}/></div></div>
+                          <div className="flex"><button onClick={()=>openEditTask(cat.id, tk)} className="text-gray-400 hover:text-[#7b4f8a] mr-1"><Edit2 size={13}/></button><button onClick={()=>upd(x=>{const c=x.categories.find(c=>c.id===cat.id);c.tasks=c.tasks.filter(t=>t.id!==tk.id);})} className="text-gray-400 hover:text-red-500"><Trash2 size={13}/></button></div>
                         </div>
-                      ))}
-                      <TaskForm catId={cat.id} upd={upd} color={cat.color}/>
-                    </div>
-                  </div>
+                      </div>
+                    ))}
+                    <TaskForm catId={cat.id} upd={upd} color={cat.color}/>
+                  </div></div>
                   <div style={{display:"flex",flexDirection:"column",gap:16}}>
                     <div style={{padding:16,borderRadius:14,background:"rgba(255,255,255,.65)",border:"1px solid rgba(224,187,228,.25)"}}>
                       <div style={{fontSize:12,fontWeight:500,color:"#9b8ab4",marginBottom:12,textTransform:"uppercase",letterSpacing:1.2}}>Finanzas</div>
-                      <div className="mb-2">
-                        <div className="text-xs text-[#aaa] mb-1">Presupuesto Estimado</div>
-                        <div className="flex items-center gap-2 p-2 rounded-lg bg-white border border-[#E0BBE4]/30">
-                          <span className="text-[#B2AC88]">$</span>
-                          <input type="number" value={cat.budgetEstimated} onChange={e=>upd(x=>{x.categories.find(c=>c.id===cat.id).budgetEstimated=+e.target.value;})} className="border-none bg-transparent flex-1 text-[#4a3a5c] focus:outline-none" />
-                        </div>
-                      </div>
-                      <div className="mb-2">
-                        <div className="text-xs text-[#aaa] mb-1">Gasto Real (suma de pagos)</div>
-                        <div className="p-2 rounded-lg bg-[#E0BBE4]/10 border border-[#E0BBE4]/30 text-[#4a3a5c] font-medium">
-                          {fmt(cat.budgetReal)}
-                        </div>
-                      </div>
-                      <div className="p-2 rounded-lg bg-[#B2AC88]/10 border border-[#B2AC88]/30">
-                        <div className="text-xs text-[#aaa]">Diferencia</div>
-                        <div className={`font-semibold ${diff>=0?"text-[#5a7a4a]":"text-[#c05a5a]"}`}>{diff>=0?"+":""}{fmt(diff)}</div>
-                      </div>
+                      <div className="mb-2"><div className="text-xs text-[#aaa] mb-1">Presupuesto Estimado</div><div className="flex items-center gap-2 p-2 rounded-lg bg-white border border-[#E0BBE4]/30"><span className="text-[#B2AC88]">$</span><input type="number" value={cat.budgetEstimated} onChange={e=>upd(x=>{x.categories.find(c=>c.id===cat.id).budgetEstimated=+e.target.value;})} className="border-none bg-transparent flex-1 text-[#4a3a5c] focus:outline-none" /></div></div>
+                      <div className="mb-2"><div className="text-xs text-[#aaa] mb-1">Gasto Real (suma de pagos)</div><div className="p-2 rounded-lg bg-[#E0BBE4]/10 border border-[#E0BBE4]/30 text-[#4a3a5c] font-medium">{fmt(cat.budgetReal)}</div></div>
+                      <div className="p-2 rounded-lg bg-[#B2AC88]/10 border border-[#B2AC88]/30"><div className="text-xs text-[#aaa]">Diferencia</div><div className={`font-semibold ${diff>=0?"text-[#5a7a4a]":"text-[#c05a5a]"}`}>{diff>=0?"+":""}{fmt(diff)}</div></div>
                     </div>
-                    <div>
-                      <div style={{fontSize:12,fontWeight:500,color:"#9b8ab4",marginBottom:12,textTransform:"uppercase",letterSpacing:1.2}}>Vision Board</div>
-                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
-                        {cat.visionItems.map(v=>(
-                          <div key={v.id} style={{position:"relative",borderRadius:12,overflow:"hidden",aspectRatio:"4/3",boxShadow:"0 3px 12px rgba(0,0,0,.08)"}}>
-                            <img src={v.url} alt={v.label} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>{e.target.style.display="none";}}/>
-                            <div style={{position:"absolute",bottom:0,left:0,right:0,padding:"4px 8px",background:"rgba(0,0,0,.4)",fontSize:11,color:"white"}}>{v.label}</div>
-                            <button onClick={()=>upd(x=>{const c=x.categories.find(c=>c.id===cat.id);c.visionItems=c.visionItems.filter(i=>i.id!==v.id);})} style={{position:"absolute",top:5,right:5,background:"rgba(0,0,0,.45)",border:"none",borderRadius:"50%",cursor:"pointer",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center"}}><X size={12} color="white"/></button>
-                          </div>
-                        ))}
-                      </div>
-                      <VisionForm catId={cat.id} upd={upd} color={cat.color}/>
-                    </div>
+                    <div><div style={{fontSize:12,fontWeight:500,color:"#9b8ab4",marginBottom:12,textTransform:"uppercase",letterSpacing:1.2}}>Vision Board</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>{cat.visionItems.map(v=>(<div key={v.id} style={{position:"relative",borderRadius:12,overflow:"hidden",aspectRatio:"4/3"}}><img src={v.url} alt={v.label} style={{width:"100%",height:"100%",objectFit:"cover"}} onError={e=>e.target.style.display="none"}/><div style={{position:"absolute",bottom:0,left:0,right:0,padding:"4px 8px",background:"rgba(0,0,0,.4)",fontSize:11,color:"white"}}>{v.label}</div><button onClick={()=>upd(x=>{const c=x.categories.find(c=>c.id===cat.id);c.visionItems=c.visionItems.filter(i=>i.id!==v.id);})} style={{position:"absolute",top:5,right:5,background:"rgba(0,0,0,.45)",border:"none",borderRadius:"50%",cursor:"pointer",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center"}}><X size={12} color="white"/></button></div>))}</div>
+                    <VisionForm catId={cat.id} upd={upd} color={cat.color}/>
                   </div>
                 </div>}
               </div>;
@@ -672,155 +615,44 @@ export default function App() {
         </div>}
 
         {/* INVITADOS */}
-        {tab==="invitados" && <div className="fade">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
-            <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Invitados <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
-            <SyncBadge status={sync}/>
-          </div>
-          <ErrorBoundary>
-            <Suspense fallback={<div className="text-center py-8">Cargando módulo de invitados...</div>}>
-              <GuestManager />
-            </Suspense>
-          </ErrorBoundary>
-        </div>}
-
+        {tab==="invitados" && <div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Invitados <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div><SyncBadge status={sync}/></div><ErrorBoundary><Suspense fallback={<div className="text-center py-8">Cargando...</div>}><GuestManager /></Suspense></ErrorBoundary></div>}
         {/* MESAS */}
-        {tab==="mesas" && <div className="fade">
-          <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:26, flexWrap:"wrap", gap:12}}>
-            <div className="serif" style={{fontSize:38, color:"#4a3a5c", fontWeight:300}}>Mesas <span style={{fontStyle:"italic", color:"#B2AC88"}}>✦</span></div>
-            <SyncBadge status={sync}/>
-          </div>
-          <div className="glass rounded-2xl p-6 space-y-6">
-            <TableConfig />
-            <ErrorBoundary>
-              <Suspense fallback={<div className="text-center py-8">Cargando dashboard de mesas...</div>}>
-                <TableDashboard />
-              </Suspense>
-            </ErrorBoundary>
-          </div>
-        </div>}
-
+        {tab==="mesas" && <div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Mesas <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div><SyncBadge status={sync}/></div><div className="glass rounded-2xl p-6 space-y-6"><TableConfig /><ErrorBoundary><Suspense fallback={<div className="text-center py-8">Cargando...</div>}><TableDashboard /></Suspense></ErrorBoundary></div></div>}
         {/* FINANZAS */}
-        {tab==="finanzas" && <div className="fade">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
-            <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Finanzas <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
-            <SyncBadge status={sync}/>
-          </div>
-          <FinancialBreakdown 
-            categories={data.categories} 
-            onPaymentAdded={() => {
-              upd(async (x) => {
-                await recalcBudgetRealFromPayments(x);
-              });
-            }}
-          />
-        </div>}
-
+        {tab==="finanzas" && <div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Finanzas <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div><SyncBadge status={sync}/></div><FinancialBreakdown categories={data.categories} onPaymentAdded={()=>{upd(async (x)=>{await recalcBudgetRealFromPayments(x);});}}/></div>}
         {/* TIMELINE */}
-        {tab==="timeline" && <div className="fade">
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
-            <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Día B <span style={{fontStyle:"italic",color:"#B2AC88"}}>— Cronograma ✦</span></div>
-            <SyncBadge status={sync}/>
-          </div>
-          <div style={{maxWidth:640,margin:"0 auto",position:"relative"}}>
-            <div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)",borderRadius:1}}/>
-            {data.timeline.map((item,i)=>{
-              const TI=IconMap[item.icon]||Star;
-              return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}>
-                <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}>
-                  <div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",position:"relative",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div>
-                </div>
-                <div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}>
-                  <input value={item.time} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).time=e.target.value;})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/>
-                  <input value={item.activity} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).activity=e.target.value;})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/>
-                  <button onClick={()=>upd(x=>{x.timeline=x.timeline.filter(t=>t.id!==item.id);})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",flexShrink:0}}><Trash2 size={13}/></button>
-                </div>
-              </div>;
-            })}
-            <div style={{display:"flex",gap:20,alignItems:"center"}}>
-              <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}>
-                <div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div>
-              </div>
-              <TimelineForm upd={upd}/>
-            </div>
-          </div>
-        </div>}
+        {tab==="timeline" && <div className="fade"><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Día B <span style={{fontStyle:"italic",color:"#B2AC88"}}>— Cronograma ✦</span></div><SyncBadge status={sync}/></div><div style={{maxWidth:640,margin:"0 auto",position:"relative"}}><div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)"}}/>{data.timeline.map((item,i)=>{const TI=IconMap[item.icon]||Star;return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}><div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div></div><div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}><input value={item.time} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).time=e.target.value;})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/><input value={item.activity} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).activity=e.target.value;})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/><button onClick={()=>upd(x=>{x.timeline=x.timeline.filter(t=>t.id!==item.id);})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd"}}><Trash2 size={13}/></button></div></div>})}<div style={{display:"flex",gap:20,alignItems:"center"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}><div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div></div><TimelineForm upd={upd}/></div></div></div>}
       </div>
 
-      {/* Modal para nueva categoría */}
-      {showNewCatModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="serif text-2xl text-[#4a3a5c] mb-4">Nueva Categoría</h3>
-            <div className="space-y-3">
-              <input type="text" placeholder="Nombre de la categoría" value={newCatName} onChange={e => setNewCatName(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200" />
-              <div>
-                <label className="block text-sm mb-1 text-[#4a3a5c]">Icono</label>
-                <div className="flex flex-wrap gap-2">
-                  {["Heart","Users","Sparkles","Flower","Music","Shirt","UtensilsCrossed","Camera","Car","Star","Gift"].map(iconName => {
-                    const IconComp = IconMap[iconName];
-                    return (
-                      <button key={iconName} onClick={() => setNewCatIcon(iconName)} className={`p-2 rounded-lg border ${newCatIcon === iconName ? 'bg-[#E0BBE4] border-[#E0BBE4]' : 'border-gray-200'} transition`}>
-                        <IconComp size={20} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <input type="number" placeholder="Presupuesto estimado (opcional)" value={newCatBudget} onChange={e => setNewCatBudget(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200" />
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowNewCatModal(false)} className="px-4 py-2 rounded-full bg-gray-200 text-gray-700">Cancelar</button>
-              <button onClick={createNewCategory} className="px-4 py-2 rounded-full bg-[#E0BBE4] text-white">Crear</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modal nueva categoría */}
+      {showNewCatModal && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"><h3 className="serif text-2xl text-[#4a3a5c] mb-4">Nueva Categoría</h3><div className="space-y-3"><input type="text" placeholder="Nombre" value={newCatName} onChange={e=>setNewCatName(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"/><div><label className="block text-sm mb-1">Icono</label><div className="flex flex-wrap gap-2">{["Heart","Users","Sparkles","Flower","Music","Shirt","UtensilsCrossed","Camera","Car","Star","Gift"].map(iconName=>{const IconComp=IconMap[iconName];return <button key={iconName} onClick={()=>setNewCatIcon(iconName)} className={`p-2 rounded-lg border ${newCatIcon===iconName?'bg-[#E0BBE4] border-[#E0BBE4]':'border-gray-200'}`}><IconComp size={20}/></button>;})}</div></div><input type="number" placeholder="Presupuesto estimado (opcional)" value={newCatBudget} onChange={e=>setNewCatBudget(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"/></div><div className="flex justify-end gap-3 mt-6"><button onClick={()=>setShowNewCatModal(false)} className="px-4 py-2 rounded-full bg-gray-200 text-gray-700">Cancelar</button><button onClick={createNewCategory} className="px-4 py-2 rounded-full bg-[#E0BBE4] text-white">Crear</button></div></div></div>}
+
+      {/* Modal editar categoría */}
+      {editCatModal && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white rounded-2xl p-6 max-w-md w-full"><h3 className="serif text-2xl text-[#4a3a5c] mb-4">Editar Categoría</h3><div className="space-y-3"><input type="text" placeholder="Nombre" value={editCatName} onChange={e=>setEditCatName(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"/><div><label className="block text-sm mb-1">Icono</label><div className="flex flex-wrap gap-2">{["Heart","Users","Sparkles","Flower","Music","Shirt","UtensilsCrossed","Camera","Car","Star","Gift"].map(iconName=>{const IconComp=IconMap[iconName];return <button key={iconName} onClick={()=>setEditCatIcon(iconName)} className={`p-2 rounded-lg border ${editCatIcon===iconName?'bg-[#E0BBE4] border-[#E0BBE4]':'border-gray-200'}`}><IconComp size={20}/></button>;})}</div></div><input type="number" placeholder="Presupuesto estimado" value={editCatBudget} onChange={e=>setEditCatBudget(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"/></div><div className="flex justify-end gap-3 mt-6"><button onClick={()=>setEditCatModal(null)} className="px-4 py-2 rounded-full bg-gray-200 text-gray-700">Cancelar</button><button onClick={saveEditCategory} className="px-4 py-2 rounded-full bg-[#E0BBE4] text-white">Guardar</button></div></div></div>}
+
+      {/* Modal editar tarea */}
+      {editTaskModal && <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"><div className="bg-white rounded-2xl p-6 max-w-md w-full"><h3 className="serif text-2xl text-[#4a3a5c] mb-4">Editar Tarea</h3><div className="space-y-3"><input type="text" placeholder="Descripción" value={editTaskText} onChange={e=>setEditTaskText(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"/><input type="date" value={editTaskDate} onChange={e=>setEditTaskDate(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"/><select value={editTaskPriority} onChange={e=>setEditTaskPriority(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></div><div className="flex justify-end gap-3 mt-6"><button onClick={()=>setEditTaskModal(null)} className="px-4 py-2 rounded-full bg-gray-200 text-gray-700">Cancelar</button><button onClick={saveEditTask} className="px-4 py-2 rounded-full bg-[#E0BBE4] text-white">Guardar</button></div></div></div>}
     </div>
   );
 }
 
 // ==================== Componentes auxiliares ====================
-
 function TaskForm({catId,upd,color}){
   const [open,setOpen]=useState(false);const [text,setText]=useState("");const [date,setDate]=useState("");const [prio,setPrio]=useState("media");
   const ok=()=>{if(!text.trim())return;upd(x=>{x.categories.find(c=>c.id===catId).tasks.push({id:"t"+Date.now(),text,done:false,date,priority:prio, details:[]});});setText("");setDate("");setOpen(false);};
-  if(!open)return<button onClick={()=>setOpen(true)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 13px",borderRadius:11,border:`1px dashed ${color}`,background:"transparent",cursor:"pointer",color:"#bbb",fontSize:13}}><Plus size={14}/> Agregar tarea</button>;
-  return<div style={{padding:13,borderRadius:12,background:"rgba(255,255,255,0.75)",border:"1px solid rgba(224,187,228,0.3)",display:"flex",flexDirection:"column",gap:9}}>
-    <input placeholder="Descripción..." value={text} onChange={e=>setText(e.target.value)} style={{padding:"8px 11px",borderRadius:8,border:"1px solid #eee",fontSize:13}}/>
-    <div style={{display:"flex",gap:8}}>
-      <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{flex:1,padding:"7px 10px",borderRadius:8,border:"1px solid #eee",fontSize:13}}/>
-      <select value={prio} onChange={e=>setPrio(e.target.value)} style={{padding:"7px 10px",borderRadius:8,border:"1px solid #eee",fontSize:13}}>
-        <option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option>
-      </select>
-    </div>
-    <div style={{display:"flex",gap:8}}>
-      <button onClick={ok} style={{flex:1,padding:"8px",borderRadius:9,background:color,border:"none",cursor:"pointer",color:"white",fontSize:13,fontWeight:500}}>Guardar</button>
-      <button onClick={()=>setOpen(false)} style={{padding:"8px 13px",borderRadius:9,background:"#f5f5f5",border:"none",cursor:"pointer",fontSize:13}}>Cancelar</button>
-    </div>
-  </div>;
+  if(!open)return<button onClick={()=>setOpen(true)} className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/40 text-[#7b4f8a] hover:bg-[#E0BBE4]/30"><Plus size={14}/> Agregar tarea</button>;
+  return<div className="p-3 rounded-xl bg-white/50 border border-[#E0BBE4]/30 space-y-2"><input placeholder="Descripción..." value={text} onChange={e=>setText(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"/><div className="flex gap-2"><input type="date" value={date} onChange={e=>setDate(e.target.value)} className="flex-1 p-2 rounded-lg border border-gray-200"/><select value={prio} onChange={e=>setPrio(e.target.value)} className="p-2 rounded-lg border border-gray-200"><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select></div><div className="flex justify-end gap-2"><button onClick={ok} className="px-3 py-1 rounded-full bg-[#E0BBE4] text-white">Guardar</button><button onClick={()=>setOpen(false)} className="px-3 py-1 rounded-full bg-gray-200">Cancelar</button></div></div>;
 }
 
 function VisionForm({catId,upd,color}){
   const [open,setOpen]=useState(false);const [url,setUrl]=useState("");const [label,setLabel]=useState("");
   const ok=()=>{if(!url.trim())return;upd(x=>{x.categories.find(c=>c.id===catId).visionItems.push({id:"v"+Date.now(),url,label});});setUrl("");setLabel("");setOpen(false);};
-  if(!open)return<button onClick={()=>setOpen(true)} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 13px",borderRadius:11,border:`1px dashed ${color}`,background:"transparent",cursor:"pointer",color:"#bbb",fontSize:13,width:"100%"}}><Plus size={14}/> Agregar imagen / Pinterest URL</button>;
-  return<div style={{padding:13,borderRadius:12,background:"rgba(255,255,255,0.75)",border:"1px solid rgba(224,187,228,0.3)",display:"flex",flexDirection:"column",gap:9}}>
-    <input placeholder="URL de imagen..." value={url} onChange={e=>setUrl(e.target.value)} style={{padding:"8px 11px",borderRadius:8,border:"1px solid #eee",fontSize:13}}/>
-    <input placeholder="Etiqueta" value={label} onChange={e=>setLabel(e.target.value)} style={{padding:"8px 11px",borderRadius:8,border:"1px solid #eee",fontSize:13}}/>
-    <div style={{display:"flex",gap:8}}>
-      <button onClick={ok} style={{flex:1,padding:"8px",borderRadius:9,background:color,border:"none",cursor:"pointer",color:"white",fontSize:13,fontWeight:500}}>Agregar</button>
-      <button onClick={()=>setOpen(false)} style={{padding:"8px 13px",borderRadius:9,background:"#f5f5f5",border:"none",cursor:"pointer",fontSize:13}}>Cancelar</button>
-    </div>
-  </div>;
+  if(!open)return<button onClick={()=>setOpen(true)} className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/40 text-[#7b4f8a] hover:bg-[#E0BBE4]/30 w-full"><Plus size={14}/> Agregar imagen</button>;
+  return<div className="p-3 rounded-xl bg-white/50 border border-[#E0BBE4]/30 space-y-2"><input placeholder="URL imagen" value={url} onChange={e=>setUrl(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"/><input placeholder="Etiqueta" value={label} onChange={e=>setLabel(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200"/><div className="flex justify-end gap-2"><button onClick={ok} className="px-3 py-1 rounded-full bg-[#E0BBE4] text-white">Agregar</button><button onClick={()=>setOpen(false)} className="px-3 py-1 rounded-full bg-gray-200">Cancelar</button></div></div>;
 }
 
 function TimelineForm({upd}){
   const [time,setTime]=useState("");const [activity,setActivity]=useState("");
   const ok=()=>{if(!activity.trim())return;upd(x=>{x.timeline.push({id:"tl"+Date.now(),time,activity,icon:"Star"});x.timeline.sort((a,b)=>a.time.localeCompare(b.time));});setTime("");setActivity("");};
-  return<div className="glass" style={{flex:1,borderRadius:14,padding:"11px 16px",display:"flex",gap:10,alignItems:"center"}}>
-    <input type="time" value={time} onChange={e=>setTime(e.target.value)} style={{width:82,padding:"6px 9px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",fontSize:13,color:"#7b4f8a"}}/>
-    <input placeholder="Nueva actividad..." value={activity} onChange={e=>setActivity(e.target.value)} style={{flex:1,padding:"6px 9px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/>
-    <button onClick={ok} style={{padding:"7px 15px",borderRadius:9,background:"#E0BBE4",border:"none",cursor:"pointer",color:"white",display:"flex",alignItems:"center"}}><Plus size={14}/></button>
-  </div>;
+  return<div className="glass flex-1 rounded-xl p-3 flex gap-2 items-center"><input type="time" value={time} onChange={e=>setTime(e.target.value)} className="w-20 p-2 rounded-lg border border-gray-200"/><input placeholder="Nueva actividad..." value={activity} onChange={e=>setActivity(e.target.value)} className="flex-1 p-2 rounded-lg border border-gray-200"/><button onClick={ok} className="p-2 rounded-full bg-[#E0BBE4] text-white"><Plus size={14}/></button></div>;
 }
