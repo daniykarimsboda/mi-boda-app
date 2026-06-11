@@ -1,4 +1,3 @@
-// src/components/FinancialBreakdown.jsx
 import { useState, useEffect } from "react";
 import { Download, Plus } from "lucide-react";
 import { supabase } from "../supabaseClient";
@@ -19,9 +18,8 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
     comment: "",
   });
 
-  // Cargar pagos existentes
   const loadPayments = async () => {
-    const { data } = await supabase.from("task_payments").select("*");
+    const { data } = await supabase.from("task_payments").select("*").order("payment_date", { ascending: false });
     if (data) setPayments(data);
   };
 
@@ -29,19 +27,14 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
     loadPayments();
   }, []);
 
-  // Cuando se selecciona una categoría, cargar sus tareas
   useEffect(() => {
     if (selectedCategory) {
       const cat = categories.find(c => c.id === selectedCategory);
-      if (cat) {
-        setTasksList(cat.tasks);
-      } else {
-        setTasksList([]);
-      }
+      if (cat) setTasksList(cat.tasks);
+      else setTasksList([]);
     }
   }, [selectedCategory, categories]);
 
-  // Manejar cambios en tipo de pago
   useEffect(() => {
     if (form.type === "Total") {
       setForm(prev => ({ ...prev, partialText: "1 de 1" }));
@@ -63,18 +56,14 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
     const task = tasksList.find(t => t.id === selectedTask);
     if (!task) return;
 
-    // Calcular el siguiente número de parcialidad si es Parcial o Anticipo
     let partialNumber = null;
     if (form.type === "Anticipo" || form.type === "Parcial") {
-      // Obtener pagos existentes de esta tarea para saber cuántos van
       const existingPayments = payments.filter(p => p.task_id === selectedTask && p.category_id === selectedCategory);
       const count = existingPayments.length + 1;
-      // Asumimos que el total de parcialidades lo indica el usuario en partialText
-      // Por ejemplo, si escribió "1 de 2", guardamos "1 de 2". Si no, generamos automático
       if (form.partialText && form.partialText.includes("de")) {
         partialNumber = form.partialText;
       } else {
-        partialNumber = `${count} de ?`; // Placeholder
+        partialNumber = `${count} de ?`;
       }
     } else if (form.type === "Total") {
       partialNumber = "1 de 1";
@@ -87,14 +76,14 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
       amount: parseFloat(form.amount),
       type: form.type,
       partial_number: partialNumber,
-      payment_method: form.paymentMethod,
-      receipt_url: form.receiptUrl,
-      comment: form.comment,
+      payment_method: form.paymentMethod || null,
+      receipt_url: form.receiptUrl || null,
+      comment: form.comment || null,
     });
 
     if (error) {
       console.error(error);
-      alert("Error al guardar el pago");
+      alert("Error al guardar el pago: " + error.message);
     } else {
       await loadPayments();
       if (onPaymentAdded) onPaymentAdded();
@@ -118,29 +107,27 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
     });
   };
 
-  // Función para construir el CSV con un renglón por pago
   const exportToCSV = () => {
-    // Para cada pago, buscar la información de la tarea y categoría
     const rows = [];
     for (const p of payments) {
       const cat = categories.find(c => c.id === p.category_id);
       const task = cat?.tasks.find(t => t.id === p.task_id);
-      const detalles = task?.details && task.details.length > 0 ? task.details[0] : null;
+      const detalles = task?.details?.[0];
       rows.push({
         Categoría: cat?.label || "",
         Tarea: task?.text || "",
         Concepto: detalles?.concepto || "",
         Característica: detalles?.caracteristica || "",
         "P. Unitario": detalles?.precioUnitario || "",
-        Piezas: detalles?.piezas || "",
+        Cantidad: detalles?.cantidad || "",
         Total: detalles?.total || "",
         "Fecha pago": p.payment_date,
         "Monto pagado": p.amount,
         "Tipo pago": p.type,
         Parcialidad: p.partial_number || "",
-        "Forma pago": p.payment_method,
-        Comprobante: p.receipt_url,
-        Comentario: p.comment,
+        "Forma pago": p.payment_method || "",
+        Comprobante: p.receipt_url || "",
+        Comentario: p.comment || "",
       });
     }
     if (rows.length === 0) {
@@ -159,10 +146,6 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
     link.click();
     URL.revokeObjectURL(link.href);
   };
-
-  // Calcular totales por categoría (actualizará el Gasto Real)
-  // Este efecto actualizará los budgetReal en el padre (App.jsx) mediante onPaymentAdded
-  // En App.jsx, al recibir onPaymentAdded, llamas a upd para recalcular budgetReal
 
   return (
     <div className="glass rounded-2xl p-6">
@@ -200,7 +183,7 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
                 <th className="py-2 px-2 text-left">Concepto</th>
                 <th className="py-2 px-2 text-left">Característica</th>
                 <th className="py-2 px-2 text-right">P. Unitario</th>
-                <th className="py-2 px-2 text-right">Piezas</th>
+                <th className="py-2 px-2 text-right">Cantidad</th>
                 <th className="py-2 px-2 text-right">Total ref.</th>
                 <th className="py-2 px-2 text-left">Fecha pago</th>
                 <th className="py-2 px-2 text-right">Monto</th>
@@ -209,7 +192,7 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
                 <th className="py-2 px-2 text-left">Forma pago</th>
                 <th className="py-2 px-2 text-left">Comprobante</th>
                 <th className="py-2 px-2 text-left">Comentario</th>
-              </tr>
+              </table>
             </thead>
             <tbody>
               {payments.map((p, idx) => {
@@ -223,7 +206,7 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
                     <td className="py-2 px-2">{detalles?.concepto || ""}</td>
                     <td className="py-2 px-2">{detalles?.caracteristica || ""}</td>
                     <td className="py-2 px-2 text-right">${(detalles?.precioUnitario || 0).toLocaleString()}</td>
-                    <td className="py-2 px-2 text-right">{detalles?.piezas || ""}</td>
+                    <td className="py-2 px-2 text-right">{detalles?.cantidad ?? ""}</td>
                     <td className="py-2 px-2 text-right">${(detalles?.total || 0).toLocaleString()}</td>
                     <td className="py-2 px-2">{p.payment_date}</td>
                     <td className="py-2 px-2 text-right font-medium">${p.amount.toLocaleString()}</td>
@@ -231,9 +214,7 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
                     <td className="py-2 px-2">{p.partial_number || ""}</td>
                     <td className="py-2 px-2">{p.payment_method || ""}</td>
                     <td className="py-2 px-2">
-                      {p.receipt_url ? (
-                        <a href={p.receipt_url} target="_blank" rel="noreferrer" className="text-[#B2AC88] underline">Ver</a>
-                      ) : ""}
+                      {p.receipt_url ? <a href={p.receipt_url} target="_blank" rel="noreferrer" className="text-[#B2AC88] underline">Ver</a> : ""}
                     </td>
                     <td className="py-2 px-2">{p.comment || ""}</td>
                   </tr>
@@ -244,26 +225,16 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
         </div>
       )}
 
-      {/* Modal para agregar pago */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
             <h3 className="serif text-2xl text-[#4a3a5c] mb-4">Registrar nuevo pago</h3>
             <div className="space-y-3">
-              <select
-                value={selectedCategory}
-                onChange={e => setSelectedCategory(e.target.value)}
-                className="w-full p-2 rounded-lg border border-gray-200"
-              >
+              <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200">
                 <option value="">Selecciona categoría</option>
                 {categories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
-              <select
-                value={selectedTask}
-                onChange={e => setSelectedTask(e.target.value)}
-                className="w-full p-2 rounded-lg border border-gray-200"
-                disabled={!selectedCategory}
-              >
+              <select value={selectedTask} onChange={e => setSelectedTask(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200" disabled={!selectedCategory}>
                 <option value="">Selecciona actividad</option>
                 {tasksList.map(t => <option key={t.id} value={t.id}>{t.text}</option>)}
               </select>
@@ -275,9 +246,9 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
               {(form.type === "Anticipo" || form.type === "Parcial") && (
                 <input type="text" placeholder="Ej: 1 de 2, 2 de 6" value={form.partialText} onChange={e => setForm({...form, partialText: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
               )}
-              <input type="text" placeholder="Forma de pago" value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
-              <input type="text" placeholder="Enlace de comprobante" value={form.receiptUrl} onChange={e => setForm({...form, receiptUrl: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
-              <textarea placeholder="Comentario" value={form.comment} onChange={e => setForm({...form, comment: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" rows="2" />
+              <input type="text" placeholder="Forma de pago (opcional)" value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
+              <input type="text" placeholder="Enlace de comprobante (opcional)" value={form.receiptUrl} onChange={e => setForm({...form, receiptUrl: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
+              <textarea placeholder="Comentario (opcional)" value={form.comment} onChange={e => setForm({...form, comment: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" rows="2" />
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-full bg-gray-200 text-gray-700">Cancelar</button>
