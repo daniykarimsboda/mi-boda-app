@@ -53,6 +53,12 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
       return;
     }
 
+    const amountNum = parseFloat(form.amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      alert("Monto debe ser un número mayor a 0");
+      return;
+    }
+
     const task = tasksList.find(t => t.id === selectedTask);
     if (!task) return;
 
@@ -73,7 +79,7 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
       task_id: selectedTask,
       category_id: selectedCategory,
       payment_date: form.paymentDate,
-      amount: parseFloat(form.amount),
+      amount: amountNum,
       type: form.type,
       partial_number: partialNumber,
       payment_method: form.paymentMethod || null,
@@ -192,7 +198,7 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
                 <th className="py-2 px-2 text-left">Forma pago</th>
                 <th className="py-2 px-2 text-left">Comprobante</th>
                 <th className="py-2 px-2 text-left">Comentario</th>
-              </table>
+              </tr>
             </thead>
             <tbody>
               {payments.map((p, idx) => {
@@ -221,13 +227,14 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
                 );
               })}
             </tbody>
-          </table>
+           </table>
         </div>
       )}
 
+      {/* Modal centrado con scroll interno */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
             <h3 className="serif text-2xl text-[#4a3a5c] mb-4">Registrar nuevo pago</h3>
             <div className="space-y-3">
               <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200">
