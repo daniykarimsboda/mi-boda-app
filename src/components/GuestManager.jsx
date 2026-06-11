@@ -98,26 +98,20 @@ export default function GuestManager() {
       const rows = parseCSV(text);
       if (rows.length === 0) throw new Error("El CSV está vacío");
 
-      // Obtener datos existentes
       const { data: existing } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
       const existingMap = new Map(existing?.map(e => [e.telefono, e]) || []);
 
-      // Procesar todas las filas (sin filtrar por teléfono vacío)
       const upsertData = [];
       for (const row of rows) {
         let telefono = row.Telefono?.trim();
         const nombre = row.Nombre?.trim() || "Sin nombre";
-        
         if (!telefono || telefono === "") {
           telefono = generarTelefonoArtificial(nombre);
         }
-        
         let existente = existingMap.get(telefono);
-        // Si no existe por teléfono real, intentar por nombre artificial
         if (!existente && telefono.startsWith("sin_telefono_")) {
           existente = existingMap.get(`nombre:${nombre.toLowerCase().trim()}`);
         }
-        
         upsertData.push({
           telefono,
           nombre,
@@ -130,10 +124,8 @@ export default function GuestManager() {
           mesa: existente?.mesa ?? null,
         });
       }
-      
       if (upsertData.length === 0) throw new Error("No hay datos para sincronizar");
 
-      // Envío uno por uno para evitar conflictos
       let successCount = 0;
       for (const item of upsertData) {
         const { error } = await supabase
@@ -141,7 +133,6 @@ export default function GuestManager() {
           .upsert(item, { onConflict: "telefono" });
         if (!error) successCount++;
       }
-      
       await loadGuests();
       alert(`✅ Sincronización completa: ${successCount} invitados actualizados.`);
     } catch (err) {
@@ -248,7 +239,7 @@ export default function GuestManager() {
                     <a href={`https://wa.me/${guest.telefono}?text=Hola%20${encodeURIComponent(guest.nombre)}%2C%20confirma%20tu%20asistencia%20en%20${process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form"}`} target="_blank" rel="noreferrer" className="text-[#B2AC88] hover:text-[#7a7555] transition">📱</a>
                   ) : <span className="text-gray-400 text-xs">Sin WhatsApp</span>}
                 </td>
-              </tr>
+              <tr>
             ))}
           </tbody>
         </table>
