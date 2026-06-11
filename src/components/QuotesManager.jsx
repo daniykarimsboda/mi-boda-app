@@ -2,17 +2,11 @@ import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { Plus, Edit2, Trash2, Download, X, Star } from "lucide-react";
 
-const formatDate = (dateStr) => {
-  if (!dateStr) return "";
-  const [year, month, day] = dateStr.split("-");
-  return `${day}/${month}/${year}`;
-};
-
 export default function QuotesManager({ categories }) {
   const [quotes, setQuotes] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [view, setView] = useState("table"); // "table" o "compare"
+  const [view, setView] = useState("table");
   const [form, setForm] = useState({
     category_id: "",
     concept: "",
@@ -33,7 +27,6 @@ export default function QuotesManager({ categories }) {
   };
 
   useEffect(() => { loadQuotes(); }, []);
-
   useEffect(() => {
     setForm(prev => ({ ...prev, total: (prev.quantity || 0) * (prev.unitCost || 0) }));
   }, [form.quantity, form.unitCost]);
@@ -137,7 +130,6 @@ export default function QuotesManager({ categories }) {
     const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "cotizaciones.csv"; link.click();
   };
 
-  // Vista comparativa: agrupar por concepto y mostrar proveedores
   const compareData = () => {
     const groups = new Map();
     quotes.forEach(q => {
@@ -178,7 +170,15 @@ export default function QuotesManager({ categories }) {
                 const cat = categories.find(c => c.id === q.category_id);
                 return (
                   <tr key={q.id} className="border-b border-[#E0BBE4]/15 hover:bg-white/20">
-                    <td className="py-2 px-2">{cat?.label}</td><td className="py-2 px-2">{q.concept}</td><td className="py-2 px-2">{q.provider}</td><td className="py-2 px-2">{q.description}<td><td className="py-2 px-2 text-right">{q.quantity}</td><td className="py-2 px-2">{q.measure}</td><td className="py-2 px-2 text-right">${q.unitCost.toLocaleString()}</td><td className="py-2 px-2 text-right font-medium">${q.total.toLocaleString()}</td><td className="py-2 px-2">{renderStars(q.rating)}</td>
+                    <td className="py-2 px-2">{cat?.label}</td>
+                    <td className="py-2 px-2">{q.concept}</td>
+                    <td className="py-2 px-2">{q.provider}</td>
+                    <td className="py-2 px-2">{q.description}</td>
+                    <td className="py-2 px-2 text-right">{q.quantity}</td>
+                    <td className="py-2 px-2">{q.measure}</td>
+                    <td className="py-2 px-2 text-right">${q.unitCost.toLocaleString()}</td>
+                    <td className="py-2 px-2 text-right font-medium">${q.total.toLocaleString()}</td>
+                    <td className="py-2 px-2">{renderStars(q.rating)}</td>
                     <td className="py-2 px-2">{q.comment}</td>
                     <td className="py-2 px-2 whitespace-nowrap"><button onClick={()=>openModal(q)} className="mr-2"><Edit2 size={14}/></button><button onClick={()=>deleteQuote(q.id)}><Trash2 size={14}/></button></td>
                   </tr>
@@ -213,7 +213,7 @@ export default function QuotesManager({ categories }) {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Modal para agregar/editar cotización */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -223,7 +223,7 @@ export default function QuotesManager({ categories }) {
             </div>
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
               <div><label className="block text-xs font-semibold">Categoría *</label><select value={form.category_id} onChange={e=>setForm({...form, category_id:e.target.value})} className="w-full p-2 border rounded"><option value="">Selecciona</option>{categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select></div>
-              <div><label className="block text-xs font-semibold">Concepto *</label><select value={form.concept} onChange={e=>setForm({...form, concept:e.target.value})} className="w-full p-2 border rounded"><option value="">Selecciona</option><option value="Otro">Otro</option>{/* Aquí podrías cargar tareas de la categoría seleccionada */}</select></div>
+              <div><label className="block text-xs font-semibold">Concepto *</label><select value={form.concept} onChange={e=>setForm({...form, concept:e.target.value})} className="w-full p-2 border rounded"><option value="">Selecciona</option><option value="Otro">Otro</option></select></div>
               {form.concept === "Otro" && <div><label>Concepto personalizado</label><input type="text" value={form.conceptCustom} onChange={e=>setForm({...form, conceptCustom:e.target.value})} className="w-full p-2 border rounded"/></div>}
               <div><label>Proveedor *</label><input type="text" value={form.provider} onChange={e=>setForm({...form, provider:e.target.value})} className="w-full p-2 border rounded"/></div>
               <div><label>Descripción</label><textarea value={form.description} onChange={e=>setForm({...form, description:e.target.value})} rows={2} className="w-full p-2 border rounded"/></div>
