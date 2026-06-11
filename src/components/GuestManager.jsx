@@ -211,9 +211,16 @@ export default function GuestManager() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4] font-medium uppercase tracking-wider">
-              <th className="py-3 px-2 text-left">Nombre</th><th className="py-3 px-2 text-left">Teléfono</th><th className="py-3 px-2 text-left">Categoría</th>
-              <th className="py-3 px-2 text-left">Prioridad</th><th className="py-3 px-2 text-left">Invitado de</th><th className="py-3 px-2 text-left">Comentario</th>
-              <th className="py-3 px-2 text-left">Mesa</th><th className="py-3 px-2 text-left">RSVP</th><th className="py-3 px-2 text-left">Alergias</th><th className="py-3 px-2 text-left">WhatsApp</th>
+              <th className="py-3 px-2 text-left">Nombre</th>
+              <th className="py-3 px-2 text-left">Teléfono</th>
+              <th className="py-3 px-2 text-left">Categoría</th>
+              <th className="py-3 px-2 text-left">Prioridad</th>
+              <th className="py-3 px-2 text-left">Invitado de</th>
+              <th className="py-3 px-2 text-left">Comentario</th>
+              <th className="py-3 px-2 text-left">Mesa</th>
+              <th className="py-3 px-2 text-left">RSVP</th>
+              <th className="py-3 px-2 text-left">Alergias</th>
+              <th className="py-3 px-2 text-left">WhatsApp</th>
             </tr>
           </thead>
           <tbody>
@@ -243,7 +250,9 @@ export default function GuestManager() {
             ))}
           </tbody>
         </table>
-        {filteredGuests.length === 0 && !loading && <div className="text-center py-10 text-[#aaa]">No hay invitados. Sincroniza con Google Sheets para cargarlos.</div>}
+        {filteredGuests.length === 0 && !loading && (
+          <div className="text-center py-10 text-[#aaa]">No hay invitados. Sincroniza con Google Sheets para cargarlos.</div>
+        )}
       </div>
     </div>
   );
