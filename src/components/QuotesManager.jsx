@@ -162,9 +162,21 @@ export default function QuotesManager({ categories }) {
       {view === "table" && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4]">
-              <th className="py-2 px-2">Categoría</th><th className="py-2 px-2">Concepto</th><th className="py-2 px-2">Proveedor</th><th className="py-2 px-2">Descripción</th><th className="py-2 px-2">Cantidad</th><th className="py-2 px-2">Medida</th><th className="py-2 px-2">Costo Unitario</th><th className="py-2 px-2">Total</th><th className="py-2 px-2">Calif.</th><th className="py-2 px-2">Comentario</th><th className="py-2 px-2">Acciones</th>
-              </table></thead>
+            <thead>
+              <tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4]">
+                <th className="py-2 px-2">Categoría</th>
+                <th className="py-2 px-2">Concepto</th>
+                <th className="py-2 px-2">Proveedor</th>
+                <th className="py-2 px-2">Descripción</th>
+                <th className="py-2 px-2">Cantidad</th>
+                <th className="py-2 px-2">Medida</th>
+                <th className="py-2 px-2">Costo Unitario</th>
+                <th className="py-2 px-2">Total</th>
+                <th className="py-2 px-2">Calif.</th>
+                <th className="py-2 px-2">Comentario</th>
+                <th className="py-2 px-2">Acciones</th>
+              </tr>
+            </thead>
             <tbody>
               {quotes.map(q => {
                 const cat = categories.find(c => c.id === q.category_id);
@@ -180,7 +192,10 @@ export default function QuotesManager({ categories }) {
                     <td className="py-2 px-2 text-right font-medium">${q.total.toLocaleString()}</td>
                     <td className="py-2 px-2">{renderStars(q.rating)}</td>
                     <td className="py-2 px-2">{q.comment}</td>
-                    <td className="py-2 px-2 whitespace-nowrap"><button onClick={()=>openModal(q)} className="mr-2"><Edit2 size={14}/></button><button onClick={()=>deleteQuote(q.id)}><Trash2 size={14}/></button></td>
+                    <td className="py-2 px-2 whitespace-nowrap">
+                      <button onClick={()=>openModal(q)} className="mr-2"><Edit2 size={14}/></button>
+                      <button onClick={()=>deleteQuote(q.id)}><Trash2 size={14}/></button>
+                    </td>
                   </tr>
                 );
               })}
