@@ -232,9 +232,9 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
       )}
 
       {/* Modal centrado con scroll interno */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
+{showModal && (
+  <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
+    <div className="bg-white rounded-2xl p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto shadow-xl transform transition-all" onClick={e => e.stopPropagation()}>
             <h3 className="serif text-2xl text-[#4a3a5c] mb-4">Registrar nuevo pago</h3>
             <div className="space-y-3">
               <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200">
