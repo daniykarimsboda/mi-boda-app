@@ -32,7 +32,7 @@ const INIT = {
   coupleName: "Dani & Karim",
   budget: 200000,
   categories: [
-    { id:"banquete", icon:"UtensilsCrossed", label:"Banquete", color:"#E0BBE4", budgetEstimated:60000, budgetReal:42000,
+    { id:"banquete", icon:"UtensilsCrossed", label:"Banquete", color:"#E0BBE4", budgetEstimated:60000, budgetReal:0,
       tasks:[
         {id:"t1",text:"Cita de degustación con el chef",done:false,date:"2026-08-15",priority:"alta", details:[]},
         {id:"t2",text:"Definir menú vegetariano y vegano",done:false,date:"2026-09-01",priority:"media", details:[]},
@@ -43,21 +43,21 @@ const INIT = {
         {id:"v1",url:"https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=400",label:"Decoración mesa"},
         {id:"v2",url:"https://images.unsplash.com/photo-1464366400600-7168b8af9bc3?w=400",label:"Pastel nupcial"},
       ]},
-    { id:"flores", icon:"Flower", label:"Flores & Decoración", color:"#C8E6C9", budgetEstimated:30000, budgetReal:18500,
+    { id:"flores", icon:"Flower", label:"Flores & Decoración", color:"#C8E6C9", budgetEstimated:30000, budgetReal:0,
       tasks:[
         {id:"t5",text:"Reunión con florista",done:true,date:"2026-07-10",priority:"alta", details:[]},
         {id:"t6",text:"Elegir flores de temporada",done:false,date:"2026-08-01",priority:"media", details:[]},
         {id:"t7",text:"Presupuesto centros de mesa",done:false,date:"2026-08-20",priority:"alta", details:[]},
       ],
       visionItems:[{id:"v3",url:"https://images.unsplash.com/photo-1490750967868-88df5691cc51?w=400",label:"Ramo de novia"}]},
-    { id:"musica", icon:"Music", label:"Música & Entretenimiento", color:"#B3E5FC", budgetEstimated:25000, budgetReal:25000,
+    { id:"musica", icon:"Music", label:"Música & Entretenimiento", color:"#B3E5FC", budgetEstimated:25000, budgetReal:0,
       tasks:[
         {id:"t8",text:"Contratar DJ",done:true,date:"2026-06-30",priority:"alta", details:[]},
         {id:"t9",text:"Playlist ceremonia",done:false,date:"2026-10-01",priority:"media", details:[]},
         {id:"t10",text:"Verificar sonido en venue",done:false,date:"2026-11-01",priority:"alta", details:[]},
       ],
       visionItems:[]},
-    { id:"vestuario", icon:"Shirt", label:"Vestuario", color:"#FFE0B2", budgetEstimated:35000, budgetReal:28000,
+    { id:"vestuario", icon:"Shirt", label:"Vestuario", color:"#FFE0B2", budgetEstimated:35000, budgetReal:0,
       tasks:[
         {id:"t11",text:"Prueba de maquillaje natural (miel/coco)",done:false,date:"2026-09-20",priority:"alta", details:[]},
         {id:"t12",text:"Kit emergencia con rodillo de pelusa",done:false,date:"2026-11-01",priority:"media", details:[]},
@@ -65,7 +65,7 @@ const INIT = {
         {id:"t14",text:"Traje del novio y padrinos",done:false,date:"2026-09-01",priority:"media", details:[]},
       ],
       visionItems:[{id:"v4",url:"https://images.unsplash.com/photo-1519741497674-611481863552?w=400",label:"Vestido de novia"}]},
-    { id:"logistica", icon:"Car", label:"Logística & Venue", color:"#F8BBD9", budgetEstimated:20000, budgetReal:15000,
+    { id:"logistica", icon:"Car", label:"Logística & Venue", color:"#F8BBD9", budgetEstimated:20000, budgetReal:0,
       tasks:[
         {id:"t15",text:"Zona de descanso privada (Recarga)",done:false,date:"2026-10-15",priority:"media", details:[]},
         {id:"t16",text:"Transportadoras para mascotas",done:false,date:"2026-11-20",priority:"baja", details:[]},
@@ -73,7 +73,7 @@ const INIT = {
         {id:"t18",text:"Confirmar horario con venue",done:true,date:"2026-07-15",priority:"alta", details:[]},
       ],
       visionItems:[]},
-    { id:"foto", icon:"Camera", label:"Fotografía & Video", color:"#E1BEE7", budgetEstimated:30000, budgetReal:30000,
+    { id:"foto", icon:"Camera", label:"Fotografía & Video", color:"#E1BEE7", budgetEstimated:30000, budgetReal:0,
       tasks:[
         {id:"t19",text:"Sesión pre-boda (e-session)",done:true,date:"2026-08-20",priority:"alta", details:[]},
         {id:"t20",text:"Lista fotos con familia",done:false,date:"2026-11-15",priority:"media", details:[]},
@@ -165,14 +165,14 @@ function Ring({ pct, color, sz=88, label, sub }) {
   );
 }
 
-// Componente de detalles de tarea (sin método de pago)
+// Componente de detalles de tarea (sin método de pago, con campo "cantidad")
 function TaskDetailsForm({ task, catId, upd, color }) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({
     concepto: "",
     caracteristica: "",
     precioUnitario: "",
-    piezas: "1",
+    cantidad: "",
     total: 0,
   });
 
@@ -183,7 +183,7 @@ function TaskDetailsForm({ task, catId, upd, color }) {
         concepto: d.concepto || "",
         caracteristica: d.caracteristica || "",
         precioUnitario: d.precioUnitario === 0 ? "" : d.precioUnitario.toString(),
-        piezas: d.piezas?.toString() || "1",
+        cantidad: d.cantidad?.toString() || "",
         total: d.total || 0,
       });
     } else if (open) {
@@ -191,7 +191,7 @@ function TaskDetailsForm({ task, catId, upd, color }) {
         concepto: "",
         caracteristica: "",
         precioUnitario: "",
-        piezas: "1",
+        cantidad: "",
         total: 0,
       });
     }
@@ -199,27 +199,27 @@ function TaskDetailsForm({ task, catId, upd, color }) {
 
   useEffect(() => {
     const pu = parseFloat(formData.precioUnitario) || 0;
-    const pz = formData.piezas === "" ? 0 : parseInt(formData.piezas, 10);
-    const nuevoTotal = pu * (isNaN(pz) ? 0 : pz);
+    const cant = formData.cantidad === "" ? 0 : parseInt(formData.cantidad, 10);
+    const nuevoTotal = pu * (isNaN(cant) ? 0 : cant);
     setFormData(prev => ({ ...prev, total: nuevoTotal }));
-  }, [formData.precioUnitario, formData.piezas]);
+  }, [formData.precioUnitario, formData.cantidad]);
 
   const updateField = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const saveDetails = () => {
-    let piezasFinal = formData.piezas;
-    if (piezasFinal === "") piezasFinal = "1";
-    const piezasNum = parseInt(piezasFinal, 10);
+    let cantidadFinal = formData.cantidad;
+    if (cantidadFinal === "") cantidadFinal = "0";
+    const cantidadNum = parseInt(cantidadFinal, 10);
     const precioNum = parseFloat(formData.precioUnitario) || 0;
     
     const finalDetails = {
       concepto: formData.concepto,
       caracteristica: formData.caracteristica,
       precioUnitario: precioNum,
-      piezas: piezasNum,
-      total: precioNum * piezasNum,
+      cantidad: cantidadNum,
+      total: precioNum * cantidadNum,
     };
     upd(x => {
       const cat = x.categories.find(c => c.id === catId);
@@ -227,7 +227,6 @@ function TaskDetailsForm({ task, catId, upd, color }) {
       if (!t.details) t.details = [];
       if (t.details.length === 0) t.details.push(finalDetails);
       else t.details[0] = finalDetails;
-      // Recalcular budgetReal basado en pagos reales (se hará aparte)
     });
     setOpen(false);
   };
@@ -270,12 +269,12 @@ function TaskDetailsForm({ task, catId, upd, color }) {
         />
         <input
           type="text"
-          placeholder="Piezas"
-          value={formData.piezas}
+          placeholder="Cantidad"
+          value={formData.cantidad}
           onChange={e => {
             let val = e.target.value;
             if (val === "" || /^\d+$/.test(val)) {
-              updateField("piezas", val);
+              updateField("cantidad", val);
             }
           }}
           className="px-2 py-1 rounded-lg border border-gray-200 text-sm"
@@ -305,6 +304,10 @@ export default function App() {
   const [editD, setEditD]    = useState(false);
   const [toast, setToast]    = useState(false);
   const [guestStats, setGuestStats] = useState({ total:0, confirmados:0, pendientes:0, rechazados:0 });
+  const [showNewCatModal, setShowNewCatModal] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatIcon, setNewCatIcon] = useState("Heart");
+  const [newCatBudget, setNewCatBudget] = useState("");
 
   const loadGuestStats = async () => {
     try {
@@ -327,6 +330,30 @@ export default function App() {
     x.categories.forEach(cat => {
       cat.budgetReal = sums[cat.id] || 0;
     });
+    return x;
+  };
+
+  const createNewCategory = async () => {
+    if (!newCatName.trim()) return;
+    const randomColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+    const newId = `cat_${Date.now()}`;
+    const newCat = {
+      id: newId,
+      icon: newCatIcon,
+      label: newCatName.trim(),
+      color: randomColor,
+      budgetEstimated: parseFloat(newCatBudget) || 0,
+      budgetReal: 0,
+      tasks: [],
+      visionItems: [],
+    };
+    upd(x => {
+      x.categories.push(newCat);
+    });
+    setShowNewCatModal(false);
+    setNewCatName("");
+    setNewCatIcon("Heart");
+    setNewCatBudget("");
   };
 
   useEffect(() => {
@@ -334,14 +361,20 @@ export default function App() {
       try {
         const { data: row, error } = await sb.from("wedding_state").select("data").eq("id", ROW_ID).maybeSingle();
         if (error) { setSync("error"); return; }
+        let safe;
         if (row?.data) {
-          const safe = safeState(row.data);
+          safe = safeState(row.data);
           setData(safe);
           localStorage.setItem("wos5", JSON.stringify(safe));
         } else {
+          safe = INIT;
           await sb.from("wedding_state").upsert({ id: ROW_ID, data: INIT });
           setData(INIT);
         }
+        // Recalcular budgetReal desde pagos existentes
+        const updated = await recalcBudgetRealFromPayments(safe);
+        setData(updated);
+        localStorage.setItem("wos5", JSON.stringify(updated));
         setSync("idle");
         await loadGuestStats();
       } catch { setSync("error"); }
@@ -361,7 +394,7 @@ export default function App() {
           }
         })
       .on("postgres_changes", { event:"*", schema:"public", table:"guests" }, () => loadGuestStats())
-      .on("postgres_changes", { event:"*", schema:"public", table:"task_payments" }, () => {
+      .on("postgres_changes", { event:"*", schema:"public", table:"task_payments" }, async () => {
         // Recalcular budgetReal cuando cambien los pagos
         upd(async (x) => {
           await recalcBudgetRealFromPayments(x);
@@ -545,6 +578,11 @@ export default function App() {
             <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Categorías <span style={{fontStyle:"italic",color:"#B2AC88"}}>✦</span></div>
             <SyncBadge status={sync}/>
           </div>
+          <div className="flex justify-end mb-4">
+            <button onClick={() => setShowNewCatModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#E0BBE4]/30 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/50 transition">
+              <Plus size={16} /> Agregar Categoría
+            </button>
+          </div>
           <div style={{display:"flex",flexDirection:"column",gap:14}}>
             {cats.map((cat)=>{
               const CI=IconMap[cat.icon]||Sparkles, open=exCat===cat.id, diff=cat.budgetEstimated-cat.budgetReal;
@@ -574,7 +612,6 @@ export default function App() {
                               const c = x.categories.find(c=>c.id===cat.id);
                               const t = c.tasks.find(t=>t.id===tk.id);
                               t.done = !t.done;
-                              // No recalculamos budgetReal aquí porque depende de pagos reales
                             })} style={{flexShrink:0,width:20,height:20,borderRadius:6,border:`2px solid ${tk.done?"#B2AC88":"#ddd"}`,background:tk.done?"#B2AC88":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
                               {tk.done&&<Check size={12} color="white" strokeWidth={3}/>}
                             </button>
@@ -673,14 +710,7 @@ export default function App() {
             categories={data.categories} 
             onPaymentAdded={() => {
               upd(async (x) => {
-                const { data: allPayments } = await sb.from("task_payments").select("*");
-                const sums = {};
-                allPayments?.forEach(p => {
-                  sums[p.category_id] = (sums[p.category_id] || 0) + p.amount;
-                });
-                x.categories.forEach(cat => {
-                  cat.budgetReal = sums[cat.id] || 0;
-                });
+                await recalcBudgetRealFromPayments(x);
               });
             }}
           />
@@ -716,6 +746,36 @@ export default function App() {
           </div>
         </div>}
       </div>
+
+      {/* Modal para nueva categoría */}
+      {showNewCatModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h3 className="serif text-2xl text-[#4a3a5c] mb-4">Nueva Categoría</h3>
+            <div className="space-y-3">
+              <input type="text" placeholder="Nombre de la categoría" value={newCatName} onChange={e => setNewCatName(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200" />
+              <div>
+                <label className="block text-sm mb-1 text-[#4a3a5c]">Icono</label>
+                <div className="flex flex-wrap gap-2">
+                  {["Heart","Users","Sparkles","Flower","Music","Shirt","UtensilsCrossed","Camera","Car","Star","Gift"].map(iconName => {
+                    const IconComp = IconMap[iconName];
+                    return (
+                      <button key={iconName} onClick={() => setNewCatIcon(iconName)} className={`p-2 rounded-lg border ${newCatIcon === iconName ? 'bg-[#E0BBE4] border-[#E0BBE4]' : 'border-gray-200'} transition`}>
+                        <IconComp size={20} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <input type="number" placeholder="Presupuesto estimado (opcional)" value={newCatBudget} onChange={e => setNewCatBudget(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200" />
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setShowNewCatModal(false)} className="px-4 py-2 rounded-full bg-gray-200 text-gray-700">Cancelar</button>
+              <button onClick={createNewCategory} className="px-4 py-2 rounded-full bg-[#E0BBE4] text-white">Crear</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
