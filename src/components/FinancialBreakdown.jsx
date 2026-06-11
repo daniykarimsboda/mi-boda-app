@@ -5,7 +5,7 @@ import { supabase } from "../supabaseClient";
 export default function FinancialBreakdown({ categories, onPaymentAdded }) {
   const [payments, setPayments] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [editingPayment, setEditingPayment] = useState(null); // null o objeto pago a editar
+  const [editingPayment, setEditingPayment] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTask, setSelectedTask] = useState("");
   const [tasksList, setTasksList] = useState([]);
@@ -24,23 +24,18 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
     if (data) setPayments(data);
   };
 
-  useEffect(() => {
-    loadPayments();
-  }, []);
-
+  useEffect(() => { loadPayments(); }, []);
   useEffect(() => {
     if (selectedCategory) {
       const cat = categories.find(c => c.id === selectedCategory);
       setTasksList(cat?.tasks || []);
     }
   }, [selectedCategory, categories]);
-
   useEffect(() => {
     if (form.type === "Total") setForm(prev => ({ ...prev, partialText: "1 de 1" }));
     else if (form.type === "Anticipo" || form.type === "Parcial") setForm(prev => ({ ...prev, partialText: "" }));
   }, [form.type]);
 
-  // Abrir modal para nuevo pago
   const openNewPaymentModal = () => {
     setEditingPayment(null);
     setSelectedCategory("");
@@ -49,10 +44,8 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
     setShowModal(true);
   };
 
-  // Abrir modal para editar pago existente
   const openEditPaymentModal = (payment) => {
     setEditingPayment(payment);
-    // Buscar la categoría y tarea asociadas
     const cat = categories.find(c => c.id === payment.category_id);
     if (cat) setSelectedCategory(cat.id);
     const task = cat?.tasks.find(t => t.id === payment.task_id);
@@ -78,7 +71,6 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
     let partialNumber = null;
     if (form.type === "Anticipo" || form.type === "Parcial") {
       if (editingPayment) {
-        // Si estamos editando, preservamos el parcial si no se cambió
         partialNumber = form.partialText || editingPayment.partial_number;
       } else {
         const existing = payments.filter(p => p.task_id === selectedTask && p.category_id === selectedCategory);
@@ -101,14 +93,9 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
 
     let error;
     if (editingPayment) {
-      // Actualizar
-      const { error: updateError } = await supabase
-        .from("task_payments")
-        .update(paymentData)
-        .eq("id", editingPayment.id);
+      const { error: updateError } = await supabase.from("task_payments").update(paymentData).eq("id", editingPayment.id);
       error = updateError;
     } else {
-      // Insertar
       const { error: insertError } = await supabase.from("task_payments").insert(paymentData);
       error = insertError;
     }
@@ -119,9 +106,6 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
       if (onPaymentAdded) onPaymentAdded();
       setShowModal(false);
       setEditingPayment(null);
-      setSelectedCategory("");
-      setSelectedTask("");
-      setForm({ paymentDate: "", amount: "", type: "Parcial", partialText: "", paymentMethod: "", receiptUrl: "", comment: "" });
       alert(editingPayment ? "Pago actualizado" : "Pago registrado");
     }
   };
@@ -175,39 +159,19 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
       <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
         <h2 className="serif text-3xl text-[#4a3a5c] font-light">Pagos Registrados <span className="italic text-[#B2AC88]">✦</span></h2>
         <div className="flex gap-2">
-          <button onClick={openNewPaymentModal} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#E0BBE4]/30 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/50 transition">
-            <Plus size={16}/> Agregar pago
-          </button>
-          <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/40 transition">
-            <Download size={16}/> Exportar CSV
-          </button>
+          <button onClick={openNewPaymentModal} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#E0BBE4]/30 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/50 transition"><Plus size={16}/> Agregar pago</button>
+          <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/40 transition"><Download size={16}/> Exportar CSV</button>
         </div>
       </div>
 
       {payments.length === 0 ? (
-        <div className="text-center py-10 text-[#aaa]">No hay pagos registrados. Usa "Agregar pago" para registrar ingresos/gastos.</div>
+        <div className="text-center py-10 text-[#aaa]">No hay pagos registrados.</div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4] font-medium">
-                <th className="py-2 px-2 text-left">Categoría</th>
-                <th className="py-2 px-2 text-left">Tarea</th>
-                <th className="py-2 px-2 text-left">Concepto</th>
-                <th className="py-2 px-2 text-left">Característica</th>
-                <th className="py-2 px-2 text-right">P.Unitario</th>
-                <th className="py-2 px-2 text-right">Cantidad</th>
-                <th className="py-2 px-2 text-right">Total ref.</th>
-                <th className="py-2 px-2 text-left">Fecha pago</th>
-                <th className="py-2 px-2 text-right">Monto</th>
-                <th className="py-2 px-2 text-left">Tipo</th>
-                <th className="py-2 px-2 text-left">Parcialidad</th>
-                <th className="py-2 px-2 text-left">Forma pago</th>
-                <th className="py-2 px-2 text-left">Comprobante</th>
-                <th className="py-2 px-2 text-left">Comentario</th>
-                <th className="py-2 px-2 text-center">Acciones</th>
-              </tr>
-            </thead>
+            <thead><tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4] font-medium">
+              <th className="py-2 px-2 text-left">Categoría</th><th className="py-2 px-2 text-left">Tarea</th><th className="py-2 px-2 text-left">Concepto</th><th className="py-2 px-2 text-left">Característica</th><th className="py-2 px-2 text-right">P.Unitario</th><th className="py-2 px-2 text-right">Cantidad</th><th className="py-2 px-2 text-right">Total ref.</th><th className="py-2 px-2 text-left">Fecha pago</th><th className="py-2 px-2 text-right">Monto</th><th className="py-2 px-2 text-left">Tipo</th><th className="py-2 px-2 text-left">Parcialidad</th><th className="py-2 px-2 text-left">Forma pago</th><th className="py-2 px-2 text-left">Comprobante</th><th className="py-2 px-2 text-left">Comentario</th><th className="py-2 px-2 text-center">Acciones</th>
+            </tr></thead>
             <tbody>
               {payments.map(p => {
                 const cat = categories.find(c => c.id === p.category_id);
@@ -215,24 +179,8 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
                 const d = task?.details?.[0];
                 return (
                   <tr key={p.id} className="border-b border-[#E0BBE4]/15 hover:bg-white/20">
-                    <td className="py-2 px-2">{cat?.label}</td>
-                    <td className="py-2 px-2">{task?.text}</td>
-                    <td className="py-2 px-2">{d?.concepto}</td>
-                    <td className="py-2 px-2">{d?.caracteristica}</td>
-                    <td className="py-2 px-2 text-right">${(d?.precioUnitario||0).toLocaleString()}</td>
-                    <td className="py-2 px-2 text-right">{d?.cantidad??""}</td>
-                    <td className="py-2 px-2 text-right">${(d?.total||0).toLocaleString()}</td>
-                    <td className="py-2 px-2">{p.payment_date}</td>
-                    <td className="py-2 px-2 text-right font-medium">${p.amount.toLocaleString()}</td>
-                    <td className="py-2 px-2">{p.type}</td>
-                    <td className="py-2 px-2">{p.partial_number||""}</td>
-                    <td className="py-2 px-2">{p.payment_method||""}</td>
-                    <td className="py-2 px-2">{p.receipt_url ? <a href={p.receipt_url} target="_blank" rel="noreferrer" className="text-[#B2AC88] underline">Ver</a> : ""}</td>
-                    <td className="py-2 px-2">{p.comment||""}</td>
-                    <td className="py-2 px-2 text-center whitespace-nowrap">
-                      <button onClick={() => openEditPaymentModal(p)} className="text-gray-500 hover:text-[#7b4f8a] mr-2 transition" title="Editar"><Edit2 size={14}/></button>
-                      <button onClick={() => deletePayment(p.id)} className="text-gray-500 hover:text-red-500 transition" title="Eliminar"><Trash2 size={14}/></button>
-                    </td>
+                    <td className="py-2 px-2">{cat?.label}</td><td className="py-2 px-2">{task?.text}</td><td className="py-2 px-2">{d?.concepto}</td><td className="py-2 px-2">{d?.caracteristica}</td><td className="py-2 px-2 text-right">${(d?.precioUnitario||0).toLocaleString()}</td><td className="py-2 px-2 text-right">{d?.cantidad??""}</td><td className="py-2 px-2 text-right">${(d?.total||0).toLocaleString()}</td><td className="py-2 px-2">{p.payment_date}</td><td className="py-2 px-2 text-right font-medium">${p.amount.toLocaleString()}</td><td className="py-2 px-2">{p.type}</td><td className="py-2 px-2">{p.partial_number||""}</td><td className="py-2 px-2">{p.payment_method||""}</td><td className="py-2 px-2">{p.receipt_url?<a href={p.receipt_url} target="_blank" rel="noreferrer" className="text-[#B2AC88] underline">Ver</a>:""}</td><td className="py-2 px-2">{p.comment||""}</td>
+                    <td className="py-2 px-2 text-center"><button onClick={()=>openEditPaymentModal(p)} className="text-gray-500 hover:text-[#7b4f8a] mr-2"><Edit2 size={14}/></button><button onClick={()=>deletePayment(p.id)} className="text-gray-500 hover:text-red-500"><Trash2 size={14}/></button></td>
                   </tr>
                 );
               })}
@@ -241,40 +189,28 @@ export default function FinancialBreakdown({ categories, onPaymentAdded }) {
         </div>
       )}
 
-      {/* Modal centrado para agregar/editar pago */}
+      {/* Modal mejorado con etiquetas visibles y centrado */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-5">
               <h3 className="serif text-2xl text-[#4a3a5c]">{editingPayment ? "Editar pago" : "Registrar pago"}</h3>
-              <button onClick={() => setShowModal(false)} className="p-1 rounded-full hover:bg-gray-100"><X size={20}/></button>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X size={20}/></button>
             </div>
-            <div className="space-y-3">
-              <select value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200">
-                <option value="">Selecciona categoría</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-              <select value={selectedTask} onChange={e => setSelectedTask(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200" disabled={!selectedCategory}>
-                <option value="">Selecciona actividad</option>
-                {tasksList.map(t => <option key={t.id} value={t.id}>{t.text}</option>)}
-              </select>
-              <input type="date" placeholder="Fecha de pago" value={form.paymentDate} onChange={e => setForm({...form, paymentDate: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
-              <input type="number" placeholder="Monto pagado" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
-              <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200">
-                <option value="Anticipo">Anticipo</option>
-                <option value="Parcial">Parcial</option>
-                <option value="Total">Total</option>
-              </select>
-              {(form.type === "Anticipo" || form.type === "Parcial") && (
-                <input type="text" placeholder="Ej: 1 de 2, 2 de 6" value={form.partialText} onChange={e => setForm({...form, partialText: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
-              )}
-              <input type="text" placeholder="Forma de pago (opcional)" value={form.paymentMethod} onChange={e => setForm({...form, paymentMethod: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
-              <input type="text" placeholder="Enlace de comprobante (opcional)" value={form.receiptUrl} onChange={e => setForm({...form, receiptUrl: e.target.value})} className="w-full p-2 rounded-lg border border-gray-200" />
-              <textarea placeholder="Comentario (opcional)" value={form.comment} onChange={e => setForm({...form, comment: e.target.value})} rows={2} className="w-full p-2 rounded-lg border border-gray-200" />
+            <div className="space-y-4">
+              <div><label className="block text-sm font-medium text-[#4a3a5c] mb-1">Categoría *</label><select value={selectedCategory} onChange={e=>setSelectedCategory(e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg focus:border-[#E0BBE4] focus:ring-1 focus:ring-[#E0BBE4]"><option value="">Selecciona...</option>{categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-[#4a3a5c] mb-1">Actividad *</label><select value={selectedTask} onChange={e=>setSelectedTask(e.target.value)} className="w-full p-2 border border-gray-200 rounded-lg focus:border-[#E0BBE4]" disabled={!selectedCategory}><option value="">Selecciona...</option>{tasksList.map(t=><option key={t.id} value={t.id}>{t.text}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-[#4a3a5c] mb-1">Fecha de pago *</label><input type="date" value={form.paymentDate} onChange={e=>setForm({...form, paymentDate:e.target.value})} className="w-full p-2 border border-gray-200 rounded-lg" /></div>
+              <div><label className="block text-sm font-medium text-[#4a3a5c] mb-1">Monto pagado *</label><input type="number" placeholder="0.00" value={form.amount} onChange={e=>setForm({...form, amount:e.target.value})} className="w-full p-2 border border-gray-200 rounded-lg" /></div>
+              <div><label className="block text-sm font-medium text-[#4a3a5c] mb-1">Tipo de pago</label><select value={form.type} onChange={e=>setForm({...form, type:e.target.value})} className="w-full p-2 border border-gray-200 rounded-lg"><option value="Anticipo">Anticipo</option><option value="Parcial">Parcial</option><option value="Total">Total</option></select></div>
+              {(form.type === "Anticipo" || form.type === "Parcial") && <div><label className="block text-sm font-medium text-[#4a3a5c] mb-1">Parcialidad (ej: 1 de 2)</label><input type="text" placeholder="1 de 2" value={form.partialText} onChange={e=>setForm({...form, partialText:e.target.value})} className="w-full p-2 border border-gray-200 rounded-lg" /></div>}
+              <div><label className="block text-sm font-medium text-[#4a3a5c] mb-1">Forma de pago (opcional)</label><input type="text" placeholder="Efectivo, Transferencia..." value={form.paymentMethod} onChange={e=>setForm({...form, paymentMethod:e.target.value})} className="w-full p-2 border border-gray-200 rounded-lg" /></div>
+              <div><label className="block text-sm font-medium text-[#4a3a5c] mb-1">Comprobante (URL)</label><input type="text" placeholder="https://..." value={form.receiptUrl} onChange={e=>setForm({...form, receiptUrl:e.target.value})} className="w-full p-2 border border-gray-200 rounded-lg" /></div>
+              <div><label className="block text-sm font-medium text-[#4a3a5c] mb-1">Comentario</label><textarea placeholder="Notas..." value={form.comment} onChange={e=>setForm({...form, comment:e.target.value})} rows={2} className="w-full p-2 border border-gray-200 rounded-lg" /></div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-full bg-gray-200 text-gray-700">Cancelar</button>
-              <button onClick={handleSavePayment} className="px-4 py-2 rounded-full bg-[#E0BBE4] text-white">{editingPayment ? "Actualizar" : "Guardar"}</button>
+              <button onClick={()=>setShowModal(false)} className="px-4 py-2 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300">Cancelar</button>
+              <button onClick={handleSavePayment} className="px-4 py-2 rounded-full bg-[#E0BBE4] text-white hover:bg-[#d0aad4]">{editingPayment ? "Actualizar" : "Guardar"}</button>
             </div>
           </div>
         </div>
