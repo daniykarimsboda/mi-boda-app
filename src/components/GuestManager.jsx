@@ -1,11 +1,9 @@
-// src/components/GuestManager.jsx
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { Search, RefreshCw } from "lucide-react";
 
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS1kv3eReuvMR3buhp2TOC3EXOBZLyzomvhLF8GXw7BxcsHzKmtW43VGY5Uvm9AdQwlL7VxmWbO_DCF/pub?gid=65042535&single=true&output=csv";
 
-// Parseador CSV robusto
 const parseCSV = (text) => {
   const lines = text.split(/\r?\n/);
   if (lines.length === 0) return [];
@@ -46,7 +44,6 @@ const parsePrioridad = (val) => {
   return "Media";
 };
 
-// Genera un identificador único para invitados sin teléfono
 const generarTelefonoArtificial = (nombre) => {
   if (!nombre) return `sin_telefono_${Date.now()}`;
   return `sin_telefono_${nombre.toLowerCase().replace(/\s/g, "_")}`;
@@ -59,23 +56,7 @@ export default function GuestManager() {
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({ categoria: "", prioridad: "", nombre: "" });
   const [maxPerTable, setMaxPerTable] = useState(10);
-  // Añadir estados en GuestManager
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteMessage, setInviteMessage] = useState("¡Te invitamos a nuestra boda! Confirma tu asistencia aquí:");
-  const [inviteLink, setInviteLink] = useState(process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form");
-  const [selectedGuests, setSelectedGuests] = useState([]);
-  const [selectAll, setSelectAll] = useState(false);
-  // Función para enviar (abrir múltiples chats)
-const sendInvitations = () => {
-  const guestsToSend = selectAll ? guests : guests.filter(g => selectedGuests.includes(g.id));
-  guestsToSend.forEach(guest => {
-    if (guest.telefono && !guest.telefono.startsWith("sin_telefono_")) {
-      const text = encodeURIComponent(`${inviteMessage}\n\nLink: ${inviteLink}\n\nNombre: ${guest.nombre}`);
-      window.open(`https://wa.me/${guest.telefono}?text=${text}`, "_blank");
-    }
-  });
-  setShowInviteModal(false);
-};
+
   useEffect(() => {
     const saved = localStorage.getItem("wedding_max_people_per_table");
     if (saved) setMaxPerTable(parseInt(saved));
@@ -108,100 +89,68 @@ const sendInvitations = () => {
   };
 
   const syncWithSheets = async () => {
-  setSyncing(true);
-  setError(null);
-  try {
-    const response = await fetch(CSV_URL);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const text = await response.text();
-    
-    // Parseo CSV
-    const lines = text.split(/\r?\n/);
-    const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim());
-    const rows = [];
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line === "") continue;
-      const values = line.split(",").map(v => v.replace(/^"|"$/g, "").trim());
-      const obj = {};
-      headers.forEach((h, idx) => { obj[h] = values[idx] || ""; });
-      rows.push(obj);
-    }
-    
-    if (rows.length === 0) throw new Error("El CSV está vacío");
+    setSyncing(true);
+    setError(null);
+    try {
+      const response = await fetch(CSV_URL);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = await response.text();
+      const rows = parseCSV(text);
+      if (rows.length === 0) throw new Error("El CSV está vacío");
 
-    // Normalizar columnas
-    const normalizeKey = (key) => key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s/g, "");
-    const firstRow = rows[0];
-    const keys = Object.keys(firstRow);
-    const colIndex = (namePattern) => keys.findIndex(k => normalizeKey(k) === namePattern);
-    
-    const idxNombre = colIndex("nombre");
-    const idxTelefono = colIndex("telefono");
-    const idxCategoria = colIndex("categoria");
-    const idxPrioridad = colIndex("prioridad");
-    const idxInvitadoDe = colIndex("invitadode");
-    const idxComentario = colIndex("comentario");
-    
-    // Obtener datos existentes para preservar rsvp, alergias, mesa
-    const { data: existingGuests } = await supabase.from("guests").select("nombre, rsvp, alergias, mesa");
-    const existingMap = new Map(existingGuests?.map(g => [g.nombre, g]) || []);
-    
-    // Preparar datos para upsert (usando nombre como clave)
-    const upsertData = rows.map(row => {
-      const nombre = idxNombre !== -1 ? (row[keys[idxNombre]] || "Sin nombre") : "Sin nombre";
-      let telefono = idxTelefono !== -1 ? row[keys[idxTelefono]] : "";
-      telefono = telefono && telefono.trim() !== "" ? telefono.trim() : null;
-      
-      let prioridad = idxPrioridad !== -1 ? row[keys[idxPrioridad]] : "Media";
-      const prioridadNum = parseInt(prioridad);
-      if (prioridadNum === 1) prioridad = "Alta";
-      else if (prioridadNum === 2) prioridad = "Media";
-      else if (prioridadNum === 3) prioridad = "Baja";
-      else if (!["Alta","Media","Baja"].includes(prioridad)) prioridad = "Media";
-      
-      const existing = existingMap.get(nombre);
-      
-      return {
-        nombre: nombre,
-        telefono: telefono,
-        categoria: idxCategoria !== -1 ? (row[keys[idxCategoria]] || "") : "",
-        prioridad: prioridad,
-        invitado_de: idxInvitadoDe !== -1 ? (row[keys[idxInvitadoDe]] || "") : "",
-        comentario: idxComentario !== -1 ? (row[keys[idxComentario]] || "") : "",
-        // Preservar datos existentes si ya estaban
-        rsvp: existing?.rsvp ?? false,
-        alergias: existing?.alergias ?? "",
-        mesa: existing?.mesa ?? null,
-      };
-    });
-    
-    if (upsertData.length === 0) throw new Error("No hay datos para sincronizar");
-    
-    // Hacer upsert en lotes (sin borrar nada)
-    let successCount = 0;
-    const batchSize = 50;
-    for (let i = 0; i < upsertData.length; i += batchSize) {
-      const batch = upsertData.slice(i, i + batchSize);
-      const { error } = await supabase
-        .from("guests")
-        .upsert(batch, { onConflict: "nombre" }); // Usar nombre como clave de conflicto
-      if (error) {
-        console.error("Error en lote:", error);
-      } else {
-        successCount += batch.length;
+      // Obtener datos existentes
+      const { data: existing } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
+      const existingMap = new Map(existing?.map(e => [e.telefono, e]) || []);
+
+      // Procesar todas las filas (sin filtrar por teléfono vacío)
+      const upsertData = [];
+      for (const row of rows) {
+        let telefono = row.Telefono?.trim();
+        const nombre = row.Nombre?.trim() || "Sin nombre";
+        
+        if (!telefono || telefono === "") {
+          telefono = generarTelefonoArtificial(nombre);
+        }
+        
+        let existente = existingMap.get(telefono);
+        // Si no existe por teléfono real, intentar por nombre artificial
+        if (!existente && telefono.startsWith("sin_telefono_")) {
+          existente = existingMap.get(`nombre:${nombre.toLowerCase().trim()}`);
+        }
+        
+        upsertData.push({
+          telefono,
+          nombre,
+          categoria: row.Categoria?.trim() || "",
+          prioridad: parsePrioridad(row.Prioridad?.trim() || "Media"),
+          invitado_de: row["Invitado de"]?.trim() || "",
+          comentario: row.Comentario?.trim() || "",
+          rsvp: existente?.rsvp ?? false,
+          alergias: existente?.alergias ?? "",
+          mesa: existente?.mesa ?? null,
+        });
       }
+      
+      if (upsertData.length === 0) throw new Error("No hay datos para sincronizar");
+
+      // Envío uno por uno para evitar conflictos
+      let successCount = 0;
+      for (const item of upsertData) {
+        const { error } = await supabase
+          .from("guests")
+          .upsert(item, { onConflict: "telefono" });
+        if (!error) successCount++;
+      }
+      
+      await loadGuests();
+      alert(`✅ Sincronización completa: ${successCount} invitados actualizados.`);
+    } catch (err) {
+      console.error(err);
+      setError("Error al sincronizar: " + err.message);
+    } finally {
+      setSyncing(false);
     }
-    
-    await loadGuests();
-    alert(`✅ Sincronización exitosa: ${successCount} invitados actualizados. Los datos de confirmación y mesas se conservaron.`);
-  } catch (err) {
-    console.error(err);
-    setError("Error al sincronizar: " + err.message);
-  } finally {
-    setSyncing(false);
-  }
-};
+  };
 
   const assignTable = async (guestId, newLetter) => {
     if (!newLetter) return;
@@ -238,56 +187,30 @@ const sendInvitations = () => {
 
   const glassCard = "glass rounded-2xl p-5 md:p-6";
 
-  if (loading && !syncing) {
-    return <div className="flex justify-center items-center py-16">Cargando invitados...</div>;
-  }
+  if (loading && !syncing) return <div className="flex justify-center items-center py-16">Cargando invitados...</div>;
 
   return (
     <div className="space-y-6">
       <div className={`${glassCard} flex flex-col md:flex-row justify-between items-start md:items-center gap-4`}>
-        <h2 className="serif text-3xl md:text-4xl text-[#4a3a5c] font-light">
-          Invitados <span className="italic text-[#B2AC88]">✦</span>
-        </h2>
-        <button
-          onClick={syncWithSheets}
-          disabled={syncing}
-          className="flex items-center gap-2 px-5 py-2 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/40 transition-all text-sm font-medium"
-        >
+        <h2 className="serif text-3xl md:text-4xl text-[#4a3a5c] font-light">Invitados <span className="italic text-[#B2AC88]">✦</span></h2>
+        <button onClick={syncWithSheets} disabled={syncing} className="flex items-center gap-2 px-5 py-2 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50 text-[#7b4f8a] hover:bg-[#E0BBE4]/40 transition-all text-sm font-medium">
           <RefreshCw size={16} className={syncing ? "animate-spin" : ""} />
           {syncing ? "Sincronizando..." : "Sincronizar con Google Sheets"}
         </button>
       </div>
 
-      {error && (
-        <div className="bg-red-100/80 backdrop-blur-sm border border-red-300 text-red-700 p-3 rounded-xl">
-          ⚠️ {error}
-        </div>
-      )}
+      {error && <div className="bg-red-100/80 backdrop-blur-sm border border-red-300 text-red-700 p-3 rounded-xl">⚠️ {error}</div>}
 
       <div className={`${glassCard} flex flex-wrap gap-3 items-center`}>
         <div className="relative flex-1 min-w-[180px]">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#aaa]" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre..."
-            value={filters.nombre}
-            onChange={e => setFilters({ ...filters, nombre: e.target.value })}
-            className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] placeholder:text-[#aaa] focus:outline-none focus:ring-1 focus:ring-[#E0BBE4]"
-          />
+          <input type="text" placeholder="Buscar por nombre..." value={filters.nombre} onChange={e => setFilters({ ...filters, nombre: e.target.value })} className="w-full pl-9 pr-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] focus:outline-none focus:ring-1 focus:ring-[#E0BBE4]" />
         </div>
-        <select
-          value={filters.categoria}
-          onChange={e => setFilters({ ...filters, categoria: e.target.value })}
-          className="px-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] text-sm focus:outline-none"
-        >
+        <select value={filters.categoria} onChange={e => setFilters({ ...filters, categoria: e.target.value })} className="px-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] text-sm focus:outline-none">
           <option value="">Todas las categorías</option>
           <option>Familia</option><option>Amigos</option><option>Trabajo</option><option>Conocidos</option>
         </select>
-        <select
-          value={filters.prioridad}
-          onChange={e => setFilters({ ...filters, prioridad: e.target.value })}
-          className="px-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] text-sm focus:outline-none"
-        >
+        <select value={filters.prioridad} onChange={e => setFilters({ ...filters, prioridad: e.target.value })} className="px-3 py-2 rounded-xl bg-white/50 border border-[#E0BBE4]/30 text-[#4a3a5c] text-sm focus:outline-none">
           <option value="">Todas las prioridades</option>
           <option>Alta</option><option>Media</option><option>Baja</option>
         </select>
@@ -297,46 +220,24 @@ const sendInvitations = () => {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4] font-medium uppercase tracking-wider">
-              <th className="py-3 px-2 text-left">Nombre</th>
-              <th className="py-3 px-2 text-left">Teléfono</th>
-              <th className="py-3 px-2 text-left">Categoría</th>
-              <th className="py-3 px-2 text-left">Prioridad</th>
-              <th className="py-3 px-2 text-left">Invitado de</th>
-              <th className="py-3 px-2 text-left">Comentario</th>
-              <th className="py-3 px-2 text-left">Mesa</th>
-              <th className="py-3 px-2 text-left">RSVP</th>
-              <th className="py-3 px-2 text-left">Alergias</th>
-              <th className="py-3 px-2 text-left">WhatsApp</th>
-             </tr>
+              <th className="py-3 px-2 text-left">Nombre</th><th className="py-3 px-2 text-left">Teléfono</th><th className="py-3 px-2 text-left">Categoría</th>
+              <th className="py-3 px-2 text-left">Prioridad</th><th className="py-3 px-2 text-left">Invitado de</th><th className="py-3 px-2 text-left">Comentario</th>
+              <th className="py-3 px-2 text-left">Mesa</th><th className="py-3 px-2 text-left">RSVP</th><th className="py-3 px-2 text-left">Alergias</th><th className="py-3 px-2 text-left">WhatsApp</th>
+            </tr>
           </thead>
           <tbody>
             {filteredGuests.map((guest, idx) => (
               <tr key={guest.id} className={`border-b border-[#E0BBE4]/15 ${idx % 2 === 0 ? "bg-white/20" : "bg-transparent"} hover:bg-[#E0BBE4]/10 transition`}>
                 <td className="py-2 px-2 font-medium text-[#4a3a5c]">{guest.nombre}</td>
-                <td className="py-2 px-2 text-[#6b5c7e]">
-                  {guest.telefono && !guest.telefono.startsWith("sin_telefono_") ? guest.telefono : "—"}
-                </td>
+                <td className="py-2 px-2 text-[#6b5c7e]">{guest.telefono?.startsWith("sin_telefono_") ? "—" : guest.telefono}</td>
                 <td className="py-2 px-2">{guest.categoria}</td>
-                <td className="py-2 px-2">
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium
-                    ${guest.prioridad === "Alta" ? "bg-[#F4A5A5]/30 text-[#c05a5a]" : 
-                      guest.prioridad === "Media" ? "bg-[#FFD580]/30 text-[#8a7230]" : 
-                      "bg-[#B2AC88]/30 text-[#5a6a45]"}`}>
-                    {guest.prioridad}
-                  </span>
-                </td>
+                <td className="py-2 px-2"><span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${guest.prioridad === "Alta" ? "bg-[#F4A5A5]/30 text-[#c05a5a]" : guest.prioridad === "Media" ? "bg-[#FFD580]/30 text-[#8a7230]" : "bg-[#B2AC88]/30 text-[#5a6a45]"}`}>{guest.prioridad}</span></td>
                 <td className="py-2 px-2">{guest.invitado_de}</td>
                 <td className="py-2 px-2 text-[#aaa]">{guest.comentario}</td>
                 <td className="py-2 px-2">
-                  <select
-                    value={guest.mesa ? guest.mesa.split("-")[0] : ""}
-                    onChange={e => assignTable(guest.id, e.target.value)}
-                    className="bg-white/60 border border-[#E0BBE4]/40 rounded-lg px-2 py-1 text-sm focus:outline-none"
-                  >
+                  <select value={guest.mesa ? guest.mesa.split("-")[0] : ""} onChange={e => assignTable(guest.id, e.target.value)} className="bg-white/60 border border-[#E0BBE4]/40 rounded-lg px-2 py-1 text-sm focus:outline-none">
                     <option value="">Sin mesa</option>
-                    {[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(l => (
-                      <option key={l} value={l}>Mesa {l}</option>
-                    ))}
+                    {[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].map(l => <option key={l} value={l}>Mesa {l}</option>)}
                   </select>
                   {guest.mesa && <span className="ml-1 text-xs text-[#B2AC88]">({guest.mesa})</span>}
                 </td>
@@ -344,27 +245,14 @@ const sendInvitations = () => {
                 <td className="py-2 px-2">{guest.alergias || "Ninguna"}</td>
                 <td className="py-2 px-2">
                   {guest.telefono && !guest.telefono.startsWith("sin_telefono_") ? (
-                    <a
-                      href={`https://wa.me/${guest.telefono}?text=Hola%20${encodeURIComponent(guest.nombre)}%2C%20confirma%20tu%20asistencia%20en%20${process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form"}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-[#B2AC88] hover:text-[#7a7555] transition"
-                    >
-                      📱
-                    </a>
-                  ) : (
-                    <span className="text-gray-400 text-xs">Sin WhatsApp</span>
-                  )}
+                    <a href={`https://wa.me/${guest.telefono}?text=Hola%20${encodeURIComponent(guest.nombre)}%2C%20confirma%20tu%20asistencia%20en%20${process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form"}`} target="_blank" rel="noreferrer" className="text-[#B2AC88] hover:text-[#7a7555] transition">📱</a>
+                  ) : <span className="text-gray-400 text-xs">Sin WhatsApp</span>}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {filteredGuests.length === 0 && !loading && (
-          <div className="text-center py-10 text-[#aaa]">
-            No hay invitados. Sincroniza con Google Sheets para cargarlos.
-          </div>
-        )}
+        {filteredGuests.length === 0 && !loading && <div className="text-center py-10 text-[#aaa]">No hay invitados. Sincroniza con Google Sheets para cargarlos.</div>}
       </div>
     </div>
   );
