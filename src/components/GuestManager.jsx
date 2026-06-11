@@ -59,7 +59,23 @@ export default function GuestManager() {
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({ categoria: "", prioridad: "", nombre: "" });
   const [maxPerTable, setMaxPerTable] = useState(10);
-
+  // Añadir estados en GuestManager
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState("¡Te invitamos a nuestra boda! Confirma tu asistencia aquí:");
+  const [inviteLink, setInviteLink] = useState(process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form");
+  const [selectedGuests, setSelectedGuests] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  // Función para enviar (abrir múltiples chats)
+const sendInvitations = () => {
+  const guestsToSend = selectAll ? guests : guests.filter(g => selectedGuests.includes(g.id));
+  guestsToSend.forEach(guest => {
+    if (guest.telefono && !guest.telefono.startsWith("sin_telefono_")) {
+      const text = encodeURIComponent(`${inviteMessage}\n\nLink: ${inviteLink}\n\nNombre: ${guest.nombre}`);
+      window.open(`https://wa.me/${guest.telefono}?text=${text}`, "_blank");
+    }
+  });
+  setShowInviteModal(false);
+};
   useEffect(() => {
     const saved = localStorage.getItem("wedding_max_people_per_table");
     if (saved) setMaxPerTable(parseInt(saved));
