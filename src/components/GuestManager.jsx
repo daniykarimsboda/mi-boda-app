@@ -239,7 +239,7 @@ export default function GuestManager() {
                     <a href={`https://wa.me/${guest.telefono}?text=Hola%20${encodeURIComponent(guest.nombre)}%2C%20confirma%20tu%20asistencia%20en%20${process.env.REACT_APP_RSVP_URL || "https://tursvp.com/form"}`} target="_blank" rel="noreferrer" className="text-[#B2AC88] hover:text-[#7a7555] transition">📱</a>
                   ) : <span className="text-gray-400 text-xs">Sin WhatsApp</span>}
                 </td>
-              <tr>
+              </tr>
             ))}
           </tbody>
         </table>
