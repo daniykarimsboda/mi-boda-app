@@ -3,7 +3,7 @@ import {
   Heart, Users, Clock, Sparkles, Menu, X, ChevronDown, ChevronUp,
   Plus, Trash2, Check, Download, Share2, Edit2, Save, Search,
   Flower, Music, Shirt, UtensilsCrossed, Camera, Car, Star, Gift,
-  Cloud, CloudOff, Loader2, DollarSign, RefreshCw, StickyNote
+  Cloud, CloudOff, Loader2, DollarSign, RefreshCw, StickyNote, Calendar
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -51,25 +51,37 @@ const INIT = {
     { id:"logistica", icon:"Car", label:"Logística", color:"#F8BBD9", budgetEstimated:20000, budgetReal:0, tasks:[], visionItems:[]},
     { id:"foto", icon:"Camera", label:"Fotografía", color:"#E1BEE7", budgetEstimated:30000, budgetReal:0, tasks:[], visionItems:[]},
   ],
-  timeline: [
+  timeline: [  // Día B (preparativos)
     {id:"tl1",time:"07:00",activity:"Despertar & Desayuno",icon:"Star"},
     {id:"tl2",time:"08:00",activity:"Maquillaje",icon:"Sparkles"},
     {id:"tl3",time:"10:00",activity:"Fotografías",icon:"Camera"},
     {id:"tl4",time:"13:00",activity:"Ceremonia",icon:"Heart"},
-    {id:"tl5",time:"16:00",activity:"Cóctel",icon:"Sparkles"},
-    {id:"tl6",time:"18:00",activity:"Banquete",icon:"UtensilsCrossed"},
-    {id:"tl7",time:"21:00",activity:"Fiesta",icon:"Music"},
+  ],
+  ddayTimeline: [ // D‑Day (día de la boda)
+    {id:"dt1",time:"14:00",activity:"Llegada de invitados",icon:"Users"},
+    {id:"dt2",time:"15:00",activity:"Ceremonia religiosa",icon:"Heart"},
+    {id:"dt3",time:"16:30",activity:"Cóctel",icon:"Sparkles"},
+    {id:"dt4",time:"18:00",activity:"Banquete",icon:"UtensilsCrossed"},
+    {id:"dt5",time:"19:30",activity:"Primer baile",icon:"Music"},
+    {id:"dt6",time:"21:00",activity:"Pastel",icon:"Gift"},
+    {id:"dt7",time:"22:00",activity:"Fiesta",icon:"Music"},
+    {id:"dt8",time:"01:00",activity:"Despedida",icon:"Star"},
   ],
 };
 
 function safeState(raw) {
   if (raw && Array.isArray(raw.categories) && raw.categories.length > 0) {
-    return { ...raw, categories: initTaskDetails(raw.categories) };
+    return {
+      ...raw,
+      categories: initTaskDetails(raw.categories),
+      timeline: raw.timeline || INIT.timeline,
+      ddayTimeline: raw.ddayTimeline || INIT.ddayTimeline,
+    };
   }
-  return initTaskDetails(INIT.categories);
+  return { ...INIT, timeline: INIT.timeline, ddayTimeline: INIT.ddayTimeline };
 }
 
-const IconMap = { UtensilsCrossed, Flower, Music, Shirt, Car, Camera, Heart, Sparkles, Star, Gift, Users };
+const IconMap = { UtensilsCrossed, Flower, Music, Shirt, Car, Camera, Heart, Sparkles, Star, Gift, Users, Calendar };
 const COLORS  = ["#E0BBE4","#B2AC88","#B3E5FC","#FFE0B2","#F8BBD9","#E1BEE7"];
 const fmt = n => new Intl.NumberFormat("es-MX",{style:"currency",currency:"MXN",maximumFractionDigits:0}).format(n);
 const daysUntil = d => Math.max(0,Math.ceil((new Date(d+"T12:00:00")-new Date())/86400000));
@@ -364,7 +376,8 @@ export default function App() {
       `PRESUPUESTO: ${fmt(data.budget)} | Gastado: ${fmt(spent)}`,
       "CATEGORÍAS:", ...data.categories.map(c=>`• ${c.label}: ${c.tasks.filter(t=>t.done).length}/${c.tasks.length} | ${fmt(c.budgetReal)}`),
       "INVITADOS:", `Confirmados: ${guestStats.confirmados}`, `Pendientes: ${guestStats.pendientes}`,
-      "TIMELINE:", ...data.timeline.map(t=>`  ${t.time}  ${t.activity}`)
+      "TIMELINE (Día B):", ...data.timeline.map(t=>`  ${t.time}  ${t.activity}`),
+      "D‑DAY (Evento):", ...data.ddayTimeline.map(t=>`  ${t.time}  ${t.activity}`)
     ];
     const blob = new Blob([lines.join("\n")], {type:"text/plain"});
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "wedding-os.txt"; a.click();
@@ -377,6 +390,7 @@ export default function App() {
     {id:"mesas", l:"Mesas", I:Users},
     {id:"finanzas", l:"Finanzas", I:DollarSign},
     {id:"timeline", l:"Día B", I:Clock},
+    {id:"dday", l:"D‑Day", I:Calendar},
     {id:"postits", l:"Post-its", I:StickyNote},
   ];
 
@@ -496,7 +510,66 @@ export default function App() {
         {tab === "invitados" && <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Invitados ✦</div><SyncBadge status={sync}/></div><ErrorBoundary><Suspense fallback={<div className="text-center py-8">Cargando módulo de invitados...</div>}><GuestManager /></Suspense></ErrorBoundary></div>}
         {tab === "mesas" && <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Mesas ✦</div><SyncBadge status={sync}/></div><div className="glass rounded-2xl p-6 space-y-6"><TableConfig /><ErrorBoundary><Suspense fallback={<div className="text-center py-8">Cargando dashboard de mesas...</div>}><TableDashboard /></Suspense></ErrorBoundary></div></div>}
         {tab === "finanzas" && <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Finanzas ✦</div><SyncBadge status={sync}/></div><FinancialBreakdown categories={data.categories} onPaymentAdded={()=>{upd(async x=>{await recalcBudgetRealFromPayments(x);});}}/></div>}
-        {tab === "timeline" && <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Día B — Cronograma ✦</div><SyncBadge status={sync}/></div><div style={{maxWidth:640,margin:"0 auto",position:"relative"}}><div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)",borderRadius:1}}/>{data.timeline.map((item,i)=>{const TI=IconMap[item.icon]||Star;return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}><div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div></div><div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}><input value={item.time} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).time=e.target.value;})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/><input value={item.activity} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).activity=e.target.value;})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/><button onClick={()=>upd(x=>{x.timeline=x.timeline.filter(t=>t.id!==item.id);})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",flexShrink:0}}><Trash2 size={13}/></button></div></div>})}<div style={{display:"flex",gap:20,alignItems:"center"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}><div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div></div><TimelineForm upd={upd}/></div></div></div>}
+        {tab === "timeline" && (
+          <div className="fade">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
+              <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Día B — Cronograma de preparativos ✦</div>
+              <SyncBadge status={sync}/>
+            </div>
+            <div style={{maxWidth:640,margin:"0 auto",position:"relative"}}>
+              <div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)",borderRadius:1}}/>
+              {data.timeline.map((item,i)=>{
+                const TI=IconMap[item.icon]||Star;
+                return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}>
+                  <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}>
+                    <div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div>
+                  </div>
+                  <div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}>
+                    <input value={item.time} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).time=e.target.value})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/>
+                    <input value={item.activity} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).activity=e.target.value})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/>
+                    <button onClick={()=>upd(x=>{x.timeline=x.timeline.filter(t=>t.id!==item.id)})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",flexShrink:0}}><Trash2 size={13}/></button>
+                  </div>
+                </div>;
+              })}
+              <div style={{display:"flex",gap:20,alignItems:"center"}}>
+                <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}>
+                  <div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div>
+                </div>
+                <TimelineForm upd={upd} target="timeline" />
+              </div>
+            </div>
+          </div>
+        )}
+        {tab === "dday" && (
+          <div className="fade">
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}>
+              <div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>D‑Day — Cronograma del evento ✦</div>
+              <SyncBadge status={sync}/>
+            </div>
+            <div style={{maxWidth:640,margin:"0 auto",position:"relative"}}>
+              <div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)",borderRadius:1}}/>
+              {data.ddayTimeline.map((item,i)=>{
+                const TI=IconMap[item.icon]||Star;
+                return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}>
+                  <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}>
+                    <div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div>
+                  </div>
+                  <div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}>
+                    <input value={item.time} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).time=e.target.value})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/>
+                    <input value={item.activity} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).activity=e.target.value})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/>
+                    <button onClick={()=>upd(x=>{x.ddayTimeline=x.ddayTimeline.filter(t=>t.id!==item.id)})} style={{background:"none",border:"none",cursor:"pointer",color:"#ddd",flexShrink:0}}><Trash2 size={13}/></button>
+                  </div>
+                </div>;
+              })}
+              <div style={{display:"flex",gap:20,alignItems:"center"}}>
+                <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}>
+                  <div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div>
+                </div>
+                <TimelineForm upd={upd} target="ddayTimeline" />
+              </div>
+            </div>
+          </div>
+        )}
         {tab === "postits" && <div><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Post-its ✦</div><SyncBadge status={sync}/></div><PostItBoard /></div>}
       </div>
 
@@ -521,8 +594,17 @@ function VisionForm({catId,upd,color}) {
   if(!open) return <button onClick={()=>setOpen(true)} className="flex items-center gap-2 text-sm px-3 py-1 rounded-full bg-white/40 text-[#7b4f8a] hover:bg-[#E0BBE4]/30 transition w-full mt-2"><Plus size={14}/> Agregar imagen</button>;
   return <div className="p-3 rounded-xl bg-white/50 border border-[#E0BBE4]/30 mt-2"><input placeholder="URL de imagen..." value={url} onChange={e=>setUrl(e.target.value)} className="w-full p-2 rounded border border-gray-200"/><input placeholder="Etiqueta" value={label} onChange={e=>setLabel(e.target.value)} className="w-full p-2 rounded border border-gray-200 mt-1"/><div className="flex justify-end gap-2 mt-2"><button onClick={ok} className="px-3 py-1 rounded-full bg-[#E0BBE4] text-white">Agregar</button><button onClick={()=>setOpen(false)} className="px-3 py-1 rounded-full bg-gray-200">Cancelar</button></div></div>;
 }
-function TimelineForm({upd}) {
-  const [time,setTime]=useState(""); const [activity,setActivity]=useState("");
-  const ok=()=>{if(!activity.trim())return;upd(x=>{x.timeline.push({id:"tl"+Date.now(),time,activity,icon:"Star"});x.timeline.sort((a,b)=>a.time.localeCompare(b.time));});setTime("");setActivity("");};
+function TimelineForm({ upd, target = "timeline" }) {
+  const [time,setTime]=useState("");
+  const [activity,setActivity]=useState("");
+  const ok=()=>{
+    if(!activity.trim()) return;
+    upd(x => {
+      x[target].push({ id: "tl"+Date.now(), time, activity, icon:"Star" });
+      x[target].sort((a,b)=>a.time.localeCompare(b.time));
+    });
+    setTime("");
+    setActivity("");
+  };
   return <div className="glass flex gap-2 p-2 rounded-xl mt-4"><input type="time" value={time} onChange={e=>setTime(e.target.value)} className="w-24 p-2 rounded border border-gray-200"/><input placeholder="Nueva actividad..." value={activity} onChange={e=>setActivity(e.target.value)} className="flex-1 p-2 rounded border border-gray-200"/><button onClick={ok} className="p-2 rounded-full bg-[#E0BBE4] text-white"><Plus size={16}/></button></div>;
 }
