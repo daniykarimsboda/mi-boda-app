@@ -40,7 +40,7 @@ const parsePrioridad = (val) => {
   if (num === 1) return "Alta";
   if (num === 2) return "Media";
   if (num === 3) return "Baja";
-  if (["Alta","Media","Baja"].includes(val)) return val;
+  if (["Alta", "Media", "Baja"].includes(val)) return val;
   return "Media";
 };
 
@@ -272,7 +272,7 @@ export default function GuestManager({ guestsFromParent, onGuestsUpdate }) {
               <th className="py-3 px-2 text-left">RSVP</th>
               <th className="py-3 px-2 text-left">Alergias</th>
               <th className="py-3 px-2 text-left">WhatsApp</th>
-            </tr>
+            <tr>
           </thead>
           <tbody>
             {filteredGuests.map((guest, idx) => (
@@ -311,7 +311,7 @@ export default function GuestManager({ guestsFromParent, onGuestsUpdate }) {
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="serif text-2xl text-[#4a3a5c]">Enviar invitación</h3>
-              <button onClick={() => setShowInviteModal(false)}><X size={20}/></button>
+              <button onClick={() => setShowInviteModal(false)}><X size={20} /></button>
             </div>
             <div className="space-y-4">
               <div>
