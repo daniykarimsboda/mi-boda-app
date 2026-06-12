@@ -15,11 +15,12 @@ export default function QuotesManager({ categories }) {
     description: "",
     quantity: 1,
     measure: "Piezas",
-    unitCost: 0,
+    unit_cost: 0,
     total: 0,
     rating: 0,
     comment: "",
   });
+  const [hoverRating, setHoverRating] = useState(0);
 
   const loadQuotes = async () => {
     const { data } = await supabase.from("quotes").select("*").order("created_at", { ascending: false });
@@ -28,8 +29,8 @@ export default function QuotesManager({ categories }) {
 
   useEffect(() => { loadQuotes(); }, []);
   useEffect(() => {
-    setForm(prev => ({ ...prev, total: (prev.quantity || 0) * (prev.unitCost || 0) }));
-  }, [form.quantity, form.unitCost]);
+    setForm(prev => ({ ...prev, total: (prev.quantity || 0) * (prev.unit_cost || 0) }));
+  }, [form.quantity, form.unit_cost]);
 
   const openModal = (quote = null) => {
     if (quote) {
@@ -42,7 +43,7 @@ export default function QuotesManager({ categories }) {
         description: quote.description,
         quantity: quote.quantity,
         measure: quote.measure,
-        unitCost: quote.unitCost,
+        unit_cost: quote.unit_cost,
         total: quote.total,
         rating: quote.rating,
         comment: quote.comment,
@@ -57,7 +58,7 @@ export default function QuotesManager({ categories }) {
         description: "",
         quantity: 1,
         measure: "Piezas",
-        unitCost: 0,
+        unit_cost: 0,
         total: 0,
         rating: 0,
         comment: "",
@@ -78,7 +79,7 @@ export default function QuotesManager({ categories }) {
       description: form.description,
       quantity: form.quantity,
       measure: form.measure,
-      unitCost: form.unitCost,
+      unit_cost: form.unit_cost,
       total: form.total,
       rating: form.rating,
       comment: form.comment,
@@ -118,7 +119,7 @@ export default function QuotesManager({ categories }) {
         Descripción: q.description,
         Cantidad: q.quantity,
         Medida: q.measure,
-        "Costo Unitario": q.unitCost,
+        "Costo Unitario": q.unit_cost,
         Total: q.total,
         Calificación: q.rating,
         Comentario: q.comment,
@@ -140,10 +141,22 @@ export default function QuotesManager({ categories }) {
     return groups;
   };
 
-  const renderStars = (rating) => {
-    return Array(5).fill(0).map((_, i) => (
-      <Star key={i} size={12} fill={i < rating ? "#FFD700" : "none"} stroke="#FFD700" />
-    ));
+  const renderStars = (rating, interactive = false, onChange = null) => {
+    return Array(5).fill(0).map((_, i) => {
+      const val = i + 1;
+      return (
+        <Star
+          key={i}
+          size={18}
+          fill={val <= (interactive ? hoverRating || rating : rating) ? "#FFD700" : "none"}
+          stroke="#FFD700"
+          className={interactive ? "cursor-pointer" : ""}
+          onClick={interactive ? () => onChange && onChange(val) : undefined}
+          onMouseEnter={interactive ? () => setHoverRating(val) : undefined}
+          onMouseLeave={interactive ? () => setHoverRating(0) : undefined}
+        />
+      );
+    });
   };
 
   return (
@@ -162,21 +175,9 @@ export default function QuotesManager({ categories }) {
       {view === "table" && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4]">
-                <th className="py-2 px-2">Categoría</th>
-                <th className="py-2 px-2">Concepto</th>
-                <th className="py-2 px-2">Proveedor</th>
-                <th className="py-2 px-2">Descripción</th>
-                <th className="py-2 px-2">Cantidad</th>
-                <th className="py-2 px-2">Medida</th>
-                <th className="py-2 px-2">Costo Unitario</th>
-                <th className="py-2 px-2">Total</th>
-                <th className="py-2 px-2">Calif.</th>
-                <th className="py-2 px-2">Comentario</th>
-                <th className="py-2 px-2">Acciones</th>
-              </tr>
-            </thead>
+            <thead><tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4]">
+              <th className="py-2 px-2">Categoría</th><th className="py-2 px-2">Concepto</th><th className="py-2 px-2">Proveedor</th><th className="py-2 px-2">Cantidad</th><th className="py-2 px-2">Medida</th><th className="py-2 px-2">C.Unitario</th><th className="py-2 px-2">Total</th><th className="py-2 px-2">Calif.</th><th className="py-2 px-2">Comentario</th><th className="py-2 px-2">Acciones</th>
+              </td></thead>
             <tbody>
               {quotes.map(q => {
                 const cat = categories.find(c => c.id === q.category_id);
@@ -185,10 +186,9 @@ export default function QuotesManager({ categories }) {
                     <td className="py-2 px-2">{cat?.label}</td>
                     <td className="py-2 px-2">{q.concept}</td>
                     <td className="py-2 px-2">{q.provider}</td>
-                    <td className="py-2 px-2">{q.description}</td>
                     <td className="py-2 px-2 text-right">{q.quantity}</td>
                     <td className="py-2 px-2">{q.measure}</td>
-                    <td className="py-2 px-2 text-right">${q.unitCost.toLocaleString()}</td>
+                    <td className="py-2 px-2 text-right">${q.unit_cost.toLocaleString()}</td>
                     <td className="py-2 px-2 text-right font-medium">${q.total.toLocaleString()}</td>
                     <td className="py-2 px-2">{renderStars(q.rating)}</td>
                     <td className="py-2 px-2">{q.comment}</td>
@@ -228,7 +228,7 @@ export default function QuotesManager({ categories }) {
         </div>
       )}
 
-      {/* Modal para agregar/editar cotización */}
+      {/* Modal centrado con estrellas interactivas */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
           <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
@@ -239,14 +239,14 @@ export default function QuotesManager({ categories }) {
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
               <div><label className="block text-xs font-semibold">Categoría *</label><select value={form.category_id} onChange={e=>setForm({...form, category_id:e.target.value})} className="w-full p-2 border rounded"><option value="">Selecciona</option>{categories.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select></div>
               <div><label className="block text-xs font-semibold">Concepto *</label><select value={form.concept} onChange={e=>setForm({...form, concept:e.target.value})} className="w-full p-2 border rounded"><option value="">Selecciona</option><option value="Otro">Otro</option></select></div>
-              {form.concept === "Otro" && <div><label>Concepto personalizado</label><input type="text" value={form.conceptCustom} onChange={e=>setForm({...form, conceptCustom:e.target.value})} className="w-full p-2 border rounded"/></div>}
+              {form.concept === "Otro" && <div className="md:col-span-2"><label>Concepto personalizado</label><input type="text" value={form.conceptCustom} onChange={e=>setForm({...form, conceptCustom:e.target.value})} className="w-full p-2 border rounded"/></div>}
               <div><label>Proveedor *</label><input type="text" value={form.provider} onChange={e=>setForm({...form, provider:e.target.value})} className="w-full p-2 border rounded"/></div>
               <div><label>Descripción</label><textarea value={form.description} onChange={e=>setForm({...form, description:e.target.value})} rows={2} className="w-full p-2 border rounded"/></div>
               <div><label>Cantidad</label><input type="number" value={form.quantity} onChange={e=>setForm({...form, quantity:+e.target.value})} className="w-full p-2 border rounded"/></div>
               <div><label>Medida</label><select value={form.measure} onChange={e=>setForm({...form, measure:e.target.value})} className="w-full p-2 border rounded"><option>Horas</option><option>Invitados</option><option>Piezas</option><option>Otro</option></select></div>
-              <div><label>Costo Unitario</label><input type="number" value={form.unitCost} onChange={e=>setForm({...form, unitCost:+e.target.value})} className="w-full p-2 border rounded"/></div>
+              <div><label>Costo Unitario</label><input type="text" placeholder="0" value={form.unit_cost === 0 ? "" : form.unit_cost} onChange={e=>setForm({...form, unit_cost: parseFloat(e.target.value) || 0})} className="w-full p-2 border rounded"/></div>
               <div><label>Total</label><input type="number" value={form.total} disabled className="w-full p-2 border rounded bg-gray-100"/></div>
-              <div><label>Calificación (1-5)</label><input type="number" min="1" max="5" value={form.rating} onChange={e=>setForm({...form, rating:+e.target.value})} className="w-full p-2 border rounded"/></div>
+              <div><label>Calificación</label><div className="flex">{renderStars(form.rating, true, (val) => setForm({...form, rating: val}))}</div></div>
               <div className="md:col-span-2"><label>Comentario</label><textarea value={form.comment} onChange={e=>setForm({...form, comment:e.target.value})} rows={2} className="w-full p-2 border rounded"/></div>
             </div>
             <div className="sticky bottom-0 bg-white px-5 py-3 border-t flex justify-end gap-2">
