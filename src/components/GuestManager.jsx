@@ -272,7 +272,7 @@ export default function GuestManager({ guestsFromParent, onGuestsUpdate }) {
               <th className="py-3 px-2 text-left">RSVP</th>
               <th className="py-3 px-2 text-left">Alergias</th>
               <th className="py-3 px-2 text-left">WhatsApp</th>
-            <tr>
+            </tr>
           </thead>
           <tbody>
             {filteredGuests.map((guest, idx) => (
@@ -302,7 +302,9 @@ export default function GuestManager({ guestsFromParent, onGuestsUpdate }) {
             ))}
           </tbody>
         </table>
-        {filteredGuests.length === 0 && !loading && <div className="text-center py-10 text-[#aaa]">No hay invitados. Sincroniza con Google Sheets para cargarlos.</div>}
+        {filteredGuests.length === 0 && !loading && (
+          <div className="text-center py-10 text-[#aaa]">No hay invitados. Sincroniza con Google Sheets para cargarlos.</div>
+        )}
       </div>
 
       {/* Modal de invitación */}
