@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Check, Download, Share2, Edit2, Save, Search,
   Flower, Music, Shirt, UtensilsCrossed, Camera, Car, Star, Gift,
   Cloud, CloudOff, Loader2, DollarSign, RefreshCw, StickyNote, Calendar,
-  Quote
+  Quote, Upload
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -20,14 +20,12 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const ROW_ID = 1;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Helper para formatear fechas dd/mm/aaaa
 const formatDate = (dateStr) => {
   if (!dateStr) return "";
   const [year, month, day] = dateStr.split("-");
   return `${day}/${month}/${year}`;
 };
 
-// Inicializar detalles y galería
 const initTaskDetails = (categories) => {
   categories.forEach(cat => {
     cat.tasks.forEach(task => {
@@ -55,12 +53,12 @@ const INIT = {
     { id:"foto", icon:"Camera", label:"Fotografía", color:"#E1BEE7", budgetEstimated:30000, budgetReal:0, tasks:[], visionItems:[]},
   ],
   timeline: [
-    {id:"tl1",time:"07:00",activity:"Despertar & Desayuno",icon:"Star"},
-    {id:"tl2",time:"08:00",activity:"Maquillaje",icon:"Sparkles"},
+    {id:"tl1",time:"07:00",activity:"Despertar & Desayuno",icon:"Star", responsible:""},
+    {id:"tl2",time:"08:00",activity:"Maquillaje",icon:"Sparkles", responsible:""},
   ],
   ddayTimeline: [
-    {id:"dt1",time:"14:00",activity:"Llegada de invitados",icon:"Users"},
-    {id:"dt2",time:"15:00",activity:"Ceremonia",icon:"Heart"},
+    {id:"dt1",time:"14:00",activity:"Llegada de invitados",icon:"Users", responsible:""},
+    {id:"dt2",time:"15:00",activity:"Ceremonia",icon:"Heart", responsible:""},
   ],
 };
 
@@ -134,26 +132,29 @@ function Ring({ pct, color, sz=88, label, sub }) {
   );
 }
 
-// Gráfico de barras horizontales para "Invitado de"
+// Gráfico de invitados por "Invitado de" - barra única dividida
 function GuestByInviterChart({ guests }) {
-  const counts = {};
-  guests.forEach(g => { const inv = g.invitado_de || "Otro"; counts[inv] = (counts[inv] || 0) + 1; });
+  let daniCount = 0, karimCount = 0;
+  guests.forEach(g => {
+    const inv = (g.invitado_de || "").toLowerCase();
+    if (inv === "dani") daniCount++;
+    else if (inv === "karim") karimCount++;
+    else if (inv === "ambos") { daniCount++; karimCount++; }
+  });
   const total = guests.length;
-  const items = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   if (total === 0) return null;
+  const daniPercent = (daniCount / total) * 100;
+  const karimPercent = (karimCount / total) * 100;
   return (
     <div className="mt-4">
-      <h4 className="text-xs font-semibold text-[#4a3a5c] mb-2">Invitados por "Invitado de"</h4>
-      <div className="space-y-2">
-        {items.map(([name, count]) => (
-          <div key={name} className="flex items-center gap-2">
-            <span className="text-xs w-20 truncate">{name}</span>
-            <div className="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
-              <div className="h-full bg-[#E0BBE4] rounded-full" style={{ width: `${(count/total)*100}%` }}></div>
-            </div>
-            <span className="text-xs w-8">{count}</span>
-          </div>
-        ))}
+      <h4 className="text-xs font-semibold text-[#4a3a5c] mb-2">Invitados de</h4>
+      <div className="flex h-5 rounded-full overflow-hidden">
+        <div style={{ width: `${daniPercent}%`, backgroundColor: "#E0BBE4" }} title={`Dani: ${daniCount}`} />
+        <div style={{ width: `${karimPercent}%`, backgroundColor: "#B2AC88" }} title={`Karim: ${karimCount}`} />
+      </div>
+      <div className="flex justify-between text-xs mt-1">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#E0BBE4]"></span> Dani ({daniCount})</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#B2AC88]"></span> Karim ({karimCount})</span>
       </div>
     </div>
   );
@@ -206,7 +207,7 @@ function ExpensesByCategoryChart({ categories }) {
   );
 }
 
-// Collage dinámico
+// Collage dinámico (sin títulos de categoría)
 function VisionBoardCollage({ categories }) {
   const [images, setImages] = useState([]);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -215,7 +216,7 @@ function VisionBoardCollage({ categories }) {
     categories.forEach(cat => {
       if (cat.visionItems && cat.visionItems.length) {
         const randomIndex = Math.floor(Math.random() * cat.visionItems.length);
-        allImages.push({ url: cat.visionItems[randomIndex].url, label: cat.label, color: cat.color });
+        allImages.push({ url: cat.visionItems[randomIndex].url, color: cat.color });
       }
     });
     setImages(allImages);
@@ -225,11 +226,10 @@ function VisionBoardCollage({ categories }) {
   return (
     <div className="mt-6">
       <div className="flex justify-between items-center mb-3"><h3 className="serif text-xl text-[#4a3a5c]">✦ Inspiración visual</h3><button onClick={refresh} className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50"><RefreshCw size={12}/> Actualizar collage</button></div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 auto-rows-[150px]">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 auto-rows-[160px]">
         {images.map((img, idx) => (
-          <div key={idx} className="rounded-xl overflow-hidden shadow-md relative" style={{ gridRow: idx % 3 === 0 ? "span 2" : "span 1", backgroundColor: img.color }}>
-            <img src={img.url} alt={img.label} className="w-full h-full object-cover" onError={e=>e.target.src='https://via.placeholder.com/300?text=Imagen+no+disponible'}/>
-            <div className="absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs p-1">{img.label}</div>
+          <div key={idx} className="rounded-xl overflow-hidden shadow-md" style={{ backgroundColor: img.color }}>
+            <img src={img.url} alt="" className="w-full h-full object-cover" onError={e=>e.target.src='https://via.placeholder.com/300?text=Imagen+no+disponible'}/>
           </div>
         ))}
       </div>
@@ -295,17 +295,23 @@ function TaskDetailsForm({ task, catId, upd, color }) {
   );
 }
 
-// Galería dentro de categorías
+// Galería con subida de archivos a Supabase Storage
 function CategoryGallery({ catId, gallery, upd }) {
-  const [newUrl, setNewUrl] = useState("");
-  const addImage = () => {
-    if (!newUrl.trim()) return;
+  const [uploading, setUploading] = useState(false);
+  const uploadImage = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const fileName = `${Date.now()}_${file.name}`;
+    const { data, error } = await sb.storage.from("wedding-images").upload(fileName, file);
+    if (error) { alert("Error al subir: " + error.message); setUploading(false); return; }
+    const { data: urlData } = sb.storage.from("wedding-images").getPublicUrl(fileName);
     upd(x => {
       const cat = x.categories.find(c => c.id === catId);
       if (!cat.gallery) cat.gallery = [];
-      cat.gallery.push({ id: Date.now(), url: newUrl.trim(), label: "" });
+      cat.gallery.push({ id: Date.now(), url: urlData.publicUrl, label: "" });
     });
-    setNewUrl("");
+    setUploading(false);
   };
   const removeImage = (id) => {
     upd(x => {
@@ -315,8 +321,20 @@ function CategoryGallery({ catId, gallery, upd }) {
   };
   return (
     <div className="mt-4">
-      <div className="flex gap-2 mb-2"><input type="text" placeholder="URL de imagen" value={newUrl} onChange={e=>setNewUrl(e.target.value)} className="flex-1 p-1 rounded border border-gray-200 text-sm"/><button onClick={addImage} className="px-2 py-1 rounded-full bg-[#E0BBE4] text-white text-xs">Agregar</button></div>
-      <div className="grid grid-cols-3 gap-2">{gallery?.map(img => <div key={img.id} className="relative group"><img src={img.url} alt="" className="w-full h-24 object-cover rounded-lg" onError={e=>e.target.style.display='none'}/><button onClick={()=>removeImage(img.id)} className="absolute top-1 right-1 bg-black/50 rounded-full p-0.5"><X size={12} color="white"/></button></div>)}</div>
+      <div className="flex gap-2 mb-2">
+        <label className={`flex items-center gap-2 px-3 py-1 rounded-full bg-[#E0BBE4] text-white text-xs cursor-pointer ${uploading ? "opacity-50" : ""}`}>
+          <Upload size={14} /> {uploading ? "Subiendo..." : "Subir imagen"}
+          <input type="file" accept="image/*" onChange={uploadImage} className="hidden" disabled={uploading} />
+        </label>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {gallery?.map(img => (
+          <div key={img.id} className="relative group">
+            <img src={img.url} alt="" className="w-full h-24 object-cover rounded-lg" />
+            <button onClick={() => removeImage(img.id)} className="absolute top-1 right-1 bg-black/50 rounded-full p-0.5"><X size={12} color="white"/></button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -344,7 +362,6 @@ export default function App() {
   const [editTaskDate, setEditTaskDate] = useState("");
   const [editTaskPriority, setEditTaskPriority] = useState("");
 
-  // Cargar lista completa de invitados para gráficos
   const loadFullGuests = async () => {
     const { data: guests } = await sb.from("guests").select("*");
     if (guests) {
@@ -451,8 +468,8 @@ export default function App() {
       `PRESUPUESTO: ${fmt(data.budget)} | Gastado: ${fmt(spent)}`,
       "CATEGORÍAS:", ...data.categories.map(c=>`• ${c.label}: ${c.tasks.filter(t=>t.done).length}/${c.tasks.length} | ${fmt(c.budgetReal)}`),
       "INVITADOS:", `Confirmados: ${guestStats.confirmados}`, `Pendientes: ${guestStats.pendientes}`,
-      "TIMELINE (Día B):", ...data.timeline.map(t=>`  ${t.time}  ${t.activity}`),
-      "D‑DAY (Evento):", ...data.ddayTimeline.map(t=>`  ${t.time}  ${t.activity}`)
+      "TIMELINE (Día B):", ...data.timeline.map(t=>`  ${t.time}  ${t.activity} (${t.responsible})`),
+      "D‑DAY (Evento):", ...data.ddayTimeline.map(t=>`  ${t.time}  ${t.activity} (${t.responsible})`)
     ];
     const blob = new Blob([lines.join("\n")], {type:"text/plain"});
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "wedding-os.txt"; a.click();
@@ -590,7 +607,7 @@ export default function App() {
         {tab === "invitados" && (
           <div>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Invitados ✦</div><SyncBadge status={sync}/></div>
-            <GuestManager />
+            <GuestManager guestsFromParent={guestsList} onGuestsUpdate={loadFullGuests} />
           </div>
         )}
         {tab === "mesas" && (
@@ -616,7 +633,22 @@ export default function App() {
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>Día B — Cronograma de preparativos ✦</div><SyncBadge status={sync}/></div>
             <div style={{maxWidth:640,margin:"0 auto",position:"relative"}}>
               <div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)",borderRadius:1}}/>
-              {data.timeline.map((item,i)=>{const TI=IconMap[item.icon]||Star;return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}><div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div></div><div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}><input value={item.time} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).time=e.target.value;})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/><input value={item.activity} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).activity=e.target.value;})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/><button onClick={()=>upd(x=>{x.timeline=x.timeline.filter(t=>t.id!==item.id);})}><Trash2 size={13}/></button></div></div>})}
+              {data.timeline.map((item,i)=>{
+                const TI=IconMap[item.icon]||Star;
+                return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}>
+                  <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}>
+                    <div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div>
+                  </div>
+                  <div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
+                    <div className="flex gap-2 items-center">
+                      <input value={item.time} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).time=e.target.value})} style={{width:70,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/>
+                      <input value={item.activity} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).activity=e.target.value})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/>
+                      <button onClick={()=>upd(x=>{x.timeline=x.timeline.filter(t=>t.id!==item.id)})}><Trash2 size={13}/></button>
+                    </div>
+                    <input value={item.responsible || ""} onChange={e=>upd(x=>{x.timeline.find(t=>t.id===item.id).responsible=e.target.value})} placeholder="Responsable" className="w-full p-1 rounded border border-[#E0BBE4]/30 text-xs" />
+                  </div>
+                </div>;
+              })}
               <div style={{display:"flex",gap:20,alignItems:"center"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}><div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div></div><TimelineForm upd={upd} target="timeline"/></div>
             </div>
           </div>
@@ -626,7 +658,22 @@ export default function App() {
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:26,flexWrap:"wrap",gap:12}}><div className="serif" style={{fontSize:38,color:"#4a3a5c",fontWeight:300}}>D‑Day — Cronograma del evento ✦</div><SyncBadge status={sync}/></div>
             <div style={{maxWidth:640,margin:"0 auto",position:"relative"}}>
               <div style={{position:"absolute",left:30,top:0,bottom:0,width:2,background:"linear-gradient(to bottom,#E0BBE4,#B2AC88)",borderRadius:1}}/>
-              {data.ddayTimeline.map((item,i)=>{const TI=IconMap[item.icon]||Star;return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}><div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div></div><div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",gap:12,alignItems:"center"}}><input value={item.time} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).time=e.target.value;})} style={{width:58,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/><input value={item.activity} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).activity=e.target.value;})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/><button onClick={()=>upd(x=>{x.ddayTimeline=x.ddayTimeline.filter(t=>t.id!==item.id);})}><Trash2 size={13}/></button></div></div>})}
+              {data.ddayTimeline.map((item,i)=>{
+                const TI=IconMap[item.icon]||Star;
+                return <div key={item.id} style={{display:"flex",gap:20,marginBottom:14,alignItems:"flex-start"}}>
+                  <div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center",paddingTop:2}}>
+                    <div style={{width:40,height:40,borderRadius:"50%",background:i%2===0?"#E0BBE4":"#B2AC88",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,boxShadow:"0 3px 10px rgba(0,0,0,.1)"}}><TI size={17} color="white" strokeWidth={1.5}/></div>
+                  </div>
+                  <div className="glass" style={{flex:1,borderRadius:14,padding:"12px 16px",display:"flex",flexDirection:"column",gap:8}}>
+                    <div className="flex gap-2 items-center">
+                      <input value={item.time} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).time=e.target.value})} style={{width:70,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.35)",background:"rgba(255,255,255,.8)",fontSize:13,fontWeight:600,color:"#7b4f8a",textAlign:"center"}}/>
+                      <input value={item.activity} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).activity=e.target.value})} style={{flex:1,padding:"5px 8px",borderRadius:8,border:"1px solid rgba(224,187,228,.2)",background:"transparent",fontSize:14,color:"#4a3a5c"}}/>
+                      <button onClick={()=>upd(x=>{x.ddayTimeline=x.ddayTimeline.filter(t=>t.id!==item.id)})}><Trash2 size={13}/></button>
+                    </div>
+                    <input value={item.responsible || ""} onChange={e=>upd(x=>{x.ddayTimeline.find(t=>t.id===item.id).responsible=e.target.value})} placeholder="Responsable" className="w-full p-1 rounded border border-[#E0BBE4]/30 text-xs" />
+                  </div>
+                </div>;
+              })}
               <div style={{display:"flex",gap:20,alignItems:"center"}}><div style={{flexShrink:0,width:60,display:"flex",justifyContent:"center"}}><div style={{width:40,height:40,borderRadius:"50%",background:"#f5f0fa",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1,border:"2px dashed #E0BBE4"}}><Plus size={18} color="#E0BBE4"/></div></div><TimelineForm upd={upd} target="ddayTimeline"/></div>
             </div>
           </div>
@@ -644,7 +691,7 @@ export default function App() {
   );
 }
 
-// ==================== Componentes auxiliares ====================
+// Componentes auxiliares (TaskForm, VisionForm, TimelineForm)
 function TaskForm({catId,upd,color}) {
   const [open,setOpen]=useState(false); const [text,setText]=useState(""); const [date,setDate]=useState(""); const [prio,setPrio]=useState("media");
   const ok=()=>{if(!text.trim())return;upd(x=>{x.categories.find(c=>c.id===catId).tasks.push({id:"t"+Date.now(),text,done:false,date,priority:prio, details:[], gallery:[]});});setText("");setDate("");setOpen(false);};
@@ -663,7 +710,7 @@ function TimelineForm({ upd, target = "timeline" }) {
   const ok=()=>{
     if(!activity.trim()) return;
     upd(x => {
-      x[target].push({ id: "tl"+Date.now(), time, activity, icon:"Star" });
+      x[target].push({ id: "tl"+Date.now(), time, activity, icon:"Star", responsible: "" });
       x[target].sort((a,b)=>a.time.localeCompare(b.time));
     });
     setTime("");
