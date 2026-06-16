@@ -100,76 +100,100 @@ export default function GuestManager({ guestsFromParent, onGuestsUpdate }) {
     return null;
   };
 
-  const syncWithSheets = async () => {
-    setSyncing(true);
-    setError(null);
-    try {
-      const response = await fetch(CSV_URL);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const text = await response.text();
-      const rows = parseCSV(text);
-      if (rows.length === 0) throw new Error("El CSV está vacío");
+const syncWithSheets = async () => {
+  setSyncing(true);
+  setError(null);
+  try {
+    const response = await fetch(CSV_URL);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const text = await response.text();
+    const rows = parseCSV(text);
+    if (rows.length === 0) throw new Error("El CSV está vacío");
 
-      // Obtener invitados existentes para preservar rsvp, alergias, mesa
-      const { data: existing } = await supabase.from("guests").select("*");
-      const existingMap = new Map();
-      existing?.forEach(g => {
-        // Usar teléfono real o nombre como clave secundaria
-        if (g.telefono && !g.telefono.startsWith("sin_telefono_")) {
-          existingMap.set(g.telefono, g);
-        } else {
-          existingMap.set(`nombre:${g.nombre.toLowerCase().trim()}`, g);
-        }
-      });
+    // Obtener todos los invitados existentes para buscar coincidencias
+    const { data: existingGuests, error: fetchError } = await supabase.from("guests").select("*");
+    if (fetchError) throw fetchError;
 
-      const upsertData = [];
-      for (const row of rows) {
-        let telefono = row.Telefono?.trim();
-        const nombre = row.Nombre?.trim() || "Sin nombre";
-        let existente = null;
-        let telefonoFinal = telefono;
+    // Crear mapas para búsqueda rápida: por teléfono real y por nombre normalizado
+    const byPhone = new Map();
+    const byName = new Map();
+    existingGuests.forEach(g => {
+      if (g.telefono && !g.telefono.startsWith("sin_telefono_")) {
+        byPhone.set(g.telefono, g);
+      }
+      const nameKey = g.nombre.toLowerCase().trim();
+      byName.set(nameKey, g);
+    });
 
-        if (!telefono || telefono === "") {
-          telefonoFinal = generarTelefonoArtificial(nombre);
-          // Buscar por nombre si no tiene teléfono
-          existente = existingMap.get(`nombre:${nombre.toLowerCase().trim()}`);
-        } else {
-          existente = existingMap.get(telefono);
-        }
+    let updated = 0;
+    let inserted = 0;
 
-        const item = {
-          telefono: telefonoFinal,
-          nombre: nombre,
-          categoria: row.Categoria?.trim() || "",
-          prioridad: parsePrioridad(row.Prioridad?.trim() || "Media"),
-          invitado_de: row["Invitado de"]?.trim() || "",
-          comentario: row.Comentario?.trim() || "",
-          rsvp: existente?.rsvp ?? false,
-          alergias: existente?.alergias ?? "",
-          mesa: existente?.mesa ?? null,
-        };
-        upsertData.push(item);
+    for (const row of rows) {
+      const nombre = row.Nombre?.trim() || "Sin nombre";
+      let telefono = row.Telefono?.trim();
+      const categoria = row.Categoria?.trim() || "";
+      const prioridad = parsePrioridad(row.Prioridad?.trim() || "Media");
+      const invitado_de = row["Invitado de"]?.trim() || "";
+      const comentario = row.Comentario?.trim() || "";
+
+      let existingGuest = null;
+      let finalTelefono = telefono;
+
+      // Buscar por teléfono real si existe
+      if (telefono && telefono !== "") {
+        existingGuest = byPhone.get(telefono);
       }
 
-      if (upsertData.length === 0) throw new Error("No hay datos para sincronizar");
+      // Si no se encontró por teléfono, buscar por nombre (útil para invitados sin teléfono o con teléfono nuevo)
+      if (!existingGuest) {
+        const nameKey = nombre.toLowerCase().trim();
+        existingGuest = byName.get(nameKey);
+        if (existingGuest) {
+          // Si se encontró por nombre y el registro actual no tiene teléfono o es artificial, mantener el teléfono existente
+          finalTelefono = existingGuest.telefono;
+        }
+      }
 
-      // Realizar upsert uno por uno
-      let successCount = 0;
-      for (const item of upsertData) {
+      const guestData = {
+        telefono: finalTelefono,
+        nombre,
+        categoria,
+        prioridad,
+        invitado_de,
+        comentario,
+      };
+
+      if (existingGuest) {
+        // Actualizar solo los campos de origen, respetando rsvp, alergias, mesa
         const { error } = await supabase
           .from("guests")
-          .upsert(item, { onConflict: "telefono" });
-        if (!error) successCount++;
+          .update(guestData)
+          .eq("id", existingGuest.id);
+        if (!error) updated++;
+        else console.error("Error al actualizar", existingGuest.id, error);
+      } else {
+        // Insertar nuevo registro con valores por defecto
+        const newGuest = {
+          ...guestData,
+          rsvp: false,
+          alergias: "",
+          mesa: null,
+        };
+        const { error } = await supabase.from("guests").insert(newGuest);
+        if (!error) inserted++;
+        else console.error("Error al insertar", error);
       }
-      await loadGuests();
-      alert(`✅ Sincronización completa: ${successCount} invitados actualizados.`);
-    } catch (err) {
-      console.error(err);
-      setError("Error al sincronizar: " + err.message);
-    } finally {
-      setSyncing(false);
     }
-  };
+
+    await loadGuests();
+    alert(`✅ Sincronización completa: ${updated} actualizados, ${inserted} nuevos.`);
+  } catch (err) {
+    console.error(err);
+    setError("Error al sincronizar: " + err.message);
+  } finally {
+    setSyncing(false);
+  }
+};
 
   const assignTable = async (guestId, newLetter) => {
     if (!newLetter) return;
