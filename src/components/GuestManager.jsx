@@ -1,3 +1,4 @@
+// src/components/GuestManager.jsx (versión corregida)
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { Search, RefreshCw, Mail, X } from "lucide-react";
@@ -109,23 +110,36 @@ export default function GuestManager({ guestsFromParent, onGuestsUpdate }) {
       const rows = parseCSV(text);
       if (rows.length === 0) throw new Error("El CSV está vacío");
 
-      const { data: existing } = await supabase.from("guests").select("telefono, rsvp, alergias, mesa");
-      const existingMap = new Map(existing?.map(e => [e.telefono, e]) || []);
+      // Obtener invitados existentes para preservar rsvp, alergias, mesa
+      const { data: existing } = await supabase.from("guests").select("*");
+      const existingMap = new Map();
+      existing?.forEach(g => {
+        // Usar teléfono real o nombre como clave secundaria
+        if (g.telefono && !g.telefono.startsWith("sin_telefono_")) {
+          existingMap.set(g.telefono, g);
+        } else {
+          existingMap.set(`nombre:${g.nombre.toLowerCase().trim()}`, g);
+        }
+      });
 
       const upsertData = [];
       for (const row of rows) {
         let telefono = row.Telefono?.trim();
         const nombre = row.Nombre?.trim() || "Sin nombre";
+        let existente = null;
+        let telefonoFinal = telefono;
+
         if (!telefono || telefono === "") {
-          telefono = generarTelefonoArtificial(nombre);
-        }
-        let existente = existingMap.get(telefono);
-        if (!existente && telefono.startsWith("sin_telefono_")) {
+          telefonoFinal = generarTelefonoArtificial(nombre);
+          // Buscar por nombre si no tiene teléfono
           existente = existingMap.get(`nombre:${nombre.toLowerCase().trim()}`);
+        } else {
+          existente = existingMap.get(telefono);
         }
-        upsertData.push({
-          telefono,
-          nombre,
+
+        const item = {
+          telefono: telefonoFinal,
+          nombre: nombre,
           categoria: row.Categoria?.trim() || "",
           prioridad: parsePrioridad(row.Prioridad?.trim() || "Media"),
           invitado_de: row["Invitado de"]?.trim() || "",
@@ -133,10 +147,13 @@ export default function GuestManager({ guestsFromParent, onGuestsUpdate }) {
           rsvp: existente?.rsvp ?? false,
           alergias: existente?.alergias ?? "",
           mesa: existente?.mesa ?? null,
-        });
+        };
+        upsertData.push(item);
       }
+
       if (upsertData.length === 0) throw new Error("No hay datos para sincronizar");
 
+      // Realizar upsert uno por uno
       let successCount = 0;
       for (const item of upsertData) {
         const { error } = await supabase
