@@ -159,6 +159,55 @@ export default function QuotesManager({ categories }) {
     });
   };
 
+  // Renderizado de la tabla usando divs en lugar de tabla para evitar errores de anidación
+  const renderTable = () => {
+    if (quotes.length === 0) {
+      return <div className="text-center py-8 text-[#aaa]">No hay cotizaciones registradas</div>;
+    }
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4]">
+              <th className="py-2 px-2 text-left">Categoría</th>
+              <th className="py-2 px-2 text-left">Concepto</th>
+              <th className="py-2 px-2 text-left">Proveedor</th>
+              <th className="py-2 px-2 text-right">Cantidad</th>
+              <th className="py-2 px-2 text-left">Medida</th>
+              <th className="py-2 px-2 text-right">C.Unitario</th>
+              <th className="py-2 px-2 text-right">Total</th>
+              <th className="py-2 px-2 text-left">Calif.</th>
+              <th className="py-2 px-2 text-left">Comentario</th>
+              <th className="py-2 px-2 text-left">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {quotes.map(q => {
+              const cat = categories.find(c => c.id === q.category_id);
+              return (
+                <tr key={q.id} className="border-b border-[#E0BBE4]/15 hover:bg-white/20">
+                  <td className="py-2 px-2">{cat?.label || ""}</td>
+                  <td className="py-2 px-2">{q.concept}</td>
+                  <td className="py-2 px-2">{q.provider}</td>
+                  <td className="py-2 px-2 text-right">{q.quantity}</td>
+                  <td className="py-2 px-2">{q.measure}</td>
+                  <td className="py-2 px-2 text-right">${q.unit_cost.toLocaleString()}</td>
+                  <td className="py-2 px-2 text-right font-medium">${q.total.toLocaleString()}</td>
+                  <td className="py-2 px-2">{renderStars(q.rating)}</td>
+                  <td className="py-2 px-2">{q.comment}</td>
+                  <td className="py-2 px-2 whitespace-nowrap">
+                    <button onClick={() => openModal(q)} className="mr-2"><Edit2 size={14}/></button>
+                    <button onClick={() => deleteQuote(q.id)}><Trash2 size={14}/></button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   return (
     <div className="glass rounded-2xl p-6">
       <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
@@ -172,48 +221,7 @@ export default function QuotesManager({ categories }) {
         </div>
       </div>
 
-      {view === "table" && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#E0BBE4]/30 text-[#9b8ab4]">
-                <th className="py-2 px-2">Categoría</th>
-                <th className="py-2 px-2">Concepto</th>
-                <th className="py-2 px-2">Proveedor</th>
-                <th className="py-2 px-2">Cantidad</th>
-                <th className="py-2 px-2">Medida</th>
-                <th className="py-2 px-2">C.Unitario</th>
-                <th className="py-2 px-2">Total</th>
-                <th className="py-2 px-2">Calif.</th>
-                <th className="py-2 px-2">Comentario</th>
-                <th className="py-2 px-2">Acciones</th>
-              </table>
-            </thead>
-            <tbody>
-              {quotes.map(q => {
-                const cat = categories.find(c => c.id === q.category_id);
-                return (
-                  <tr key={q.id} className="border-b border-[#E0BBE4]/15 hover:bg-white/20">
-                    <td className="py-2 px-2">{cat?.label}</td>
-                    <td className="py-2 px-2">{q.concept}</td>
-                    <td className="py-2 px-2">{q.provider}</td>
-                    <td className="py-2 px-2 text-right">{q.quantity}</td>
-                    <td className="py-2 px-2">{q.measure}</td>
-                    <td className="py-2 px-2 text-right">${q.unit_cost.toLocaleString()}</td>
-                    <td className="py-2 px-2 text-right font-medium">${q.total.toLocaleString()}</td>
-                    <td className="py-2 px-2">{renderStars(q.rating)}</td>
-                    <td className="py-2 px-2">{q.comment}</td>
-                    <td className="py-2 px-2 whitespace-nowrap">
-                      <button onClick={() => openModal(q)} className="mr-2"><Edit2 size={14}/></button>
-                      <button onClick={() => deleteQuote(q.id)}><Trash2 size={14}/></button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {view === "table" && renderTable()}
 
       {view === "compare" && (
         <div>
