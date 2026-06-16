@@ -631,11 +631,20 @@ export default function App() {
               </div>
               <div className="glass" style={{ borderRadius: 22, padding: "22px 24px" }}>
                 <div style={{ fontSize: 11, fontWeight: 500, color: "#B2AC88", marginBottom: 10 }}>Invitados</div>
-                <div className="serif" style={{ fontSize: 44, color: "#4a3a5c", fontWeight: 300 }}>{guestStats.total}</div>
+                <div className="serif" style={{ fontSize: 44, color: "#4a3a5c", fontWeight: 300, marginBottom: 14 }}>{guestStats.total}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                  <div><div>{guestStats.confirmados}</div><div>Conf.</div></div>
-                  <div><div>{guestStats.pendientes}</div><div>Pend.</div></div>
-                  <div><div>{guestStats.rechazados}</div><div>Rech.</div></div>
+                  <div style={{ background: "#B2AC8833", borderRadius: 11, padding: "9px 6px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "#4a3a5c" }}>{guestStats.confirmados}</div>
+                    <div style={{ fontSize: 10, color: "#888" }}>Conf.</div>
+                  </div>
+                  <div style={{ background: "#FFD58033", borderRadius: 11, padding: "9px 6px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "#4a3a5c" }}>{guestStats.pendientes}</div>
+                    <div style={{ fontSize: 10, color: "#888" }}>Pend.</div>
+                  </div>
+                  <div style={{ background: "#F4A5A533", borderRadius: 11, padding: "9px 6px", textAlign: "center" }}>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: "#4a3a5c" }}>{guestStats.rechazados}</div>
+                    <div style={{ fontSize: 10, color: "#888" }}>Rech.</div>
+                  </div>
                 </div>
                 <GuestByInviterChart guests={guestsList} />
               </div>
