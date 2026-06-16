@@ -1,4 +1,3 @@
-// src/components/GuestManager.jsx (versión corregida)
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { Search, RefreshCw, Mail, X } from "lucide-react";
@@ -100,100 +99,69 @@ export default function GuestManager({ guestsFromParent, onGuestsUpdate }) {
     return null;
   };
 
-const syncWithSheets = async () => {
-  setSyncing(true);
-  setError(null);
-  try {
-    const response = await fetch(CSV_URL);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const text = await response.text();
-    const rows = parseCSV(text);
-    if (rows.length === 0) throw new Error("El CSV está vacío");
+  const syncWithSheets = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const response = await fetch(CSV_URL);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = await response.text();
+      const rows = parseCSV(text);
+      if (rows.length === 0) throw new Error("El CSV está vacío");
 
-    // Obtener todos los invitados existentes para buscar coincidencias
-    const { data: existingGuests, error: fetchError } = await supabase.from("guests").select("*");
-    if (fetchError) throw fetchError;
+      const { data: existingGuests, error: fetchError } = await supabase.from("guests").select("*");
+      if (fetchError) throw fetchError;
 
-    // Crear mapas para búsqueda rápida: por teléfono real y por nombre normalizado
-    const byPhone = new Map();
-    const byName = new Map();
-    existingGuests.forEach(g => {
-      if (g.telefono && !g.telefono.startsWith("sin_telefono_")) {
-        byPhone.set(g.telefono, g);
-      }
-      const nameKey = g.nombre.toLowerCase().trim();
-      byName.set(nameKey, g);
-    });
+      const byPhone = new Map();
+      const byName = new Map();
+      existingGuests.forEach(g => {
+        if (g.telefono && !g.telefono.startsWith("sin_telefono_")) byPhone.set(g.telefono, g);
+        const nameKey = g.nombre.toLowerCase().trim();
+        byName.set(nameKey, g);
+      });
 
-    let updated = 0;
-    let inserted = 0;
+      let updated = 0, inserted = 0;
 
-    for (const row of rows) {
-      const nombre = row.Nombre?.trim() || "Sin nombre";
-      let telefono = row.Telefono?.trim();
-      const categoria = row.Categoria?.trim() || "";
-      const prioridad = parsePrioridad(row.Prioridad?.trim() || "Media");
-      const invitado_de = row["Invitado de"]?.trim() || "";
-      const comentario = row.Comentario?.trim() || "";
+      for (const row of rows) {
+        const nombre = row.Nombre?.trim() || "Sin nombre";
+        let telefono = row.Telefono?.trim();
+        const categoria = row.Categoria?.trim() || "";
+        const prioridad = parsePrioridad(row.Prioridad?.trim() || "Media");
+        const invitado_de = row["Invitado de"]?.trim() || "";
+        const comentario = row.Comentario?.trim() || "";
 
-      let existingGuest = null;
-      let finalTelefono = telefono;
+        let existingGuest = null;
+        let finalTelefono = telefono;
 
-      // Buscar por teléfono real si existe
-      if (telefono && telefono !== "") {
-        existingGuest = byPhone.get(telefono);
-      }
+        if (telefono && telefono !== "") {
+          existingGuest = byPhone.get(telefono);
+        }
+        if (!existingGuest) {
+          const nameKey = nombre.toLowerCase().trim();
+          existingGuest = byName.get(nameKey);
+          if (existingGuest) finalTelefono = existingGuest.telefono;
+        }
 
-      // Si no se encontró por teléfono, buscar por nombre (útil para invitados sin teléfono o con teléfono nuevo)
-      if (!existingGuest) {
-        const nameKey = nombre.toLowerCase().trim();
-        existingGuest = byName.get(nameKey);
+        const guestData = { telefono: finalTelefono, nombre, categoria, prioridad, invitado_de, comentario };
+
         if (existingGuest) {
-          // Si se encontró por nombre y el registro actual no tiene teléfono o es artificial, mantener el teléfono existente
-          finalTelefono = existingGuest.telefono;
+          const { error } = await supabase.from("guests").update(guestData).eq("id", existingGuest.id);
+          if (!error) updated++;
+        } else {
+          const newGuest = { ...guestData, rsvp: false, alergias: "", mesa: null };
+          const { error } = await supabase.from("guests").insert(newGuest);
+          if (!error) inserted++;
         }
       }
-
-      const guestData = {
-        telefono: finalTelefono,
-        nombre,
-        categoria,
-        prioridad,
-        invitado_de,
-        comentario,
-      };
-
-      if (existingGuest) {
-        // Actualizar solo los campos de origen, respetando rsvp, alergias, mesa
-        const { error } = await supabase
-          .from("guests")
-          .update(guestData)
-          .eq("id", existingGuest.id);
-        if (!error) updated++;
-        else console.error("Error al actualizar", existingGuest.id, error);
-      } else {
-        // Insertar nuevo registro con valores por defecto
-        const newGuest = {
-          ...guestData,
-          rsvp: false,
-          alergias: "",
-          mesa: null,
-        };
-        const { error } = await supabase.from("guests").insert(newGuest);
-        if (!error) inserted++;
-        else console.error("Error al insertar", error);
-      }
+      await loadGuests();
+      alert(`✅ Sincronización: ${updated} actualizados, ${inserted} nuevos.`);
+    } catch (err) {
+      console.error(err);
+      setError("Error al sincronizar: " + err.message);
+    } finally {
+      setSyncing(false);
     }
-
-    await loadGuests();
-    alert(`✅ Sincronización completa: ${updated} actualizados, ${inserted} nuevos.`);
-  } catch (err) {
-    console.error(err);
-    setError("Error al sincronizar: " + err.message);
-  } finally {
-    setSyncing(false);
-  }
-};
+  };
 
   const assignTable = async (guestId, newLetter) => {
     if (!newLetter) return;
@@ -213,11 +181,8 @@ const syncWithSheets = async () => {
   };
 
   const handleSelectAll = () => {
-    if (selectAll) {
-      setSelectedGuests([]);
-    } else {
-      setSelectedGuests(guests.map(g => g.id));
-    }
+    if (selectAll) setSelectedGuests([]);
+    else setSelectedGuests(guests.map(g => g.id));
     setSelectAll(!selectAll);
   };
 
@@ -348,17 +313,17 @@ const syncWithSheets = async () => {
         )}
       </div>
 
-      {/* Modal de invitación */}
+      {/* Modal de invitación - corregido */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowInviteModal(false)}>
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="serif text-2xl text-[#4a3a5c]">Enviar invitación</h3>
-              <button onClick={() => setShowInviteModal(false)}><X size={20} /></button>
+              <button onClick={() => setShowInviteModal(false)} className="p-1 rounded-full hover:bg-gray-100"><X size={20} /></button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#4a3a5c] mb-1">Mensaje de WhatsApp (usa {nombre} para personalizar)</label>
+                <label className="block text-sm font-medium text-[#4a3a5c] mb-1">Mensaje de WhatsApp (usa {'{nombre}'} para personalizar)</label>
                 <textarea value={inviteMessage} onChange={e => setInviteMessage(e.target.value)} rows={3} className="w-full p-2 border rounded-lg" />
               </div>
               <div>
@@ -368,9 +333,15 @@ const syncWithSheets = async () => {
               <div>
                 <label className="block text-sm font-medium text-[#4a3a5c] mb-1">Destinatarios</label>
                 <div className="border rounded-lg p-2 max-h-40 overflow-y-auto">
-                  <label className="flex items-center gap-2 mb-1"><input type="checkbox" checked={selectAll} onChange={handleSelectAll} /> <span className="font-semibold">Todos los invitados</span></label>
+                  <label className="flex items-center gap-2 mb-1">
+                    <input type="checkbox" checked={selectAll} onChange={handleSelectAll} />
+                    <span className="font-semibold">Todos los invitados</span>
+                  </label>
                   {guests.map(g => (
-                    <label key={g.id} className="flex items-center gap-2 ml-4"><input type="checkbox" checked={selectedGuests.includes(g.id)} onChange={() => toggleSelectGuest(g.id)} /> {g.nombre}</label>
+                    <label key={g.id} className="flex items-center gap-2 ml-4">
+                      <input type="checkbox" checked={selectedGuests.includes(g.id)} onChange={() => toggleSelectGuest(g.id)} />
+                      {g.nombre}
+                    </label>
                   ))}
                 </div>
               </div>
