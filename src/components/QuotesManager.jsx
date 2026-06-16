@@ -187,7 +187,7 @@ export default function QuotesManager({ categories }) {
                 <th className="py-2 px-2">Calif.</th>
                 <th className="py-2 px-2">Comentario</th>
                 <th className="py-2 px-2">Acciones</th>
-              </td>
+              </table>
             </thead>
             <tbody>
               {quotes.map(q => {
