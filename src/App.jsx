@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Check, Download, Share2, Edit2, Save, Search,
   Flower, Music, Shirt, UtensilsCrossed, Camera, Car, Star, Gift,
   Cloud, CloudOff, Loader2, DollarSign, RefreshCw, StickyNote, Calendar,
-  Quote, Upload
+  Quote, Upload, LogIn, UserPlus
 } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -19,6 +19,8 @@ const SUPABASE_URL = "https://gruszoneusbmhkmeogvn.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdydXN6b25ldXNibWhrbWVvZ3ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyODk1NDQsImV4cCI6MjA4OTg2NTU0NH0.Z_F4EIKj_sahMRNgywImTT6m5jMU1KhE6MWQ1oVLRpM";
 const ROW_ID = 1;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const SECURITY_CODE = "270321";
 
 const formatDate = (dateStr) => {
   if (!dateStr) return "";
@@ -112,7 +114,131 @@ function SyncBadge({ status }) {
   );
 }
 
-// Componentes auxiliares (definidos antes de App para evitar errores)
+// === Componentes auxiliares ===
+function Ring({ pct, color, sz = 88, label, sub }) {
+  const r = (sz - 14) / 2, c = 2 * Math.PI * r;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+      <svg width={sz} height={sz} viewBox={`0 0 ${sz} ${sz}`}>
+        <circle cx={sz / 2} cy={sz / 2} r={r} fill="none" stroke="#F0E8F5" strokeWidth={9} />
+        <circle cx={sz / 2} cy={sz / 2} r={r} fill="none" stroke={color} strokeWidth={9} strokeLinecap="round"
+          strokeDasharray={c} strokeDashoffset={c - (pct / 100) * c}
+          transform={`rotate(-90 ${sz / 2} ${sz / 2})`} style={{ transition: "stroke-dashoffset 1s ease" }} />
+        <text x={sz / 2} y={sz / 2 + 5} textAnchor="middle" fontSize={14} fontWeight={600} fill="#4a3a5c" fontFamily="DM Sans">{pct}%</text>
+      </svg>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 12, fontWeight: 500, color: "#6b6b8a" }}>{label}</div>
+        <div style={{ fontSize: 11, color: "#aaa" }}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+function GuestByInviterChart({ guests }) {
+  let dani = 0, karim = 0;
+  guests.forEach(g => {
+    const inv = (g.invitado_de || "").toLowerCase();
+    if (inv === "dani") dani++;
+    else if (inv === "karim") karim++;
+    else if (inv === "ambos") { dani++; karim++; }
+  });
+  const total = guests.length;
+  if (total === 0) return null;
+  const daniPct = (dani / total) * 100;
+  const karimPct = (karim / total) * 100;
+  return (
+    <div className="mt-4">
+      <h4 className="text-xs font-semibold text-[#4a3a5c] mb-2">Invitados de</h4>
+      <div className="flex h-5 rounded-full overflow-hidden">
+        <div style={{ width: `${daniPct}%`, backgroundColor: "#E0BBE4" }} title={`Dani: ${dani}`} />
+        <div style={{ width: `${karimPct}%`, backgroundColor: "#B2AC88" }} title={`Karim: ${karim}`} />
+      </div>
+      <div className="flex justify-between text-xs mt-1">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#E0BBE4]" /> Dani ({dani})</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#B2AC88]" /> Karim ({karim})</span>
+      </div>
+    </div>
+  );
+}
+
+function ExpensesByCategoryChart({ categories }) {
+  const data = categories.map(c => ({ label: c.label, value: c.budgetReal, color: c.color })).filter(c => c.value > 0);
+  const total = data.reduce((s, c) => s + c.value, 0);
+  if (total === 0) return <div className="text-center text-[#aaa] text-sm py-4">No hay gastos registrados</div>;
+  let accumulated = 0;
+  return (
+    <div className="mt-4">
+      <h4 className="text-sm font-semibold text-[#4a3a5c] mb-2">Gastos por categoría</h4>
+      <div className="flex flex-wrap gap-4 items-center">
+        <div className="relative w-24 h-24">
+          <svg viewBox="0 0 100 100" className="transform -rotate-90">
+            {data.map((item, idx) => {
+              const percent = (item.value / total) * 100;
+              const start = accumulated;
+              const end = start + percent;
+              const startAngle = (start / 100) * 360;
+              const endAngle = (end / 100) * 360;
+              const largeArc = percent > 50 ? 1 : 0;
+              const startRad = (startAngle * Math.PI) / 180;
+              const endRad = (endAngle * Math.PI) / 180;
+              const x1 = 50 + 40 * Math.cos(startRad);
+              const y1 = 50 + 40 * Math.sin(startRad);
+              const x2 = 50 + 40 * Math.cos(endRad);
+              const y2 = 50 + 40 * Math.sin(endRad);
+              const path = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
+              accumulated = end;
+              return <path key={idx} d={path} fill={item.color} stroke="white" strokeWidth="1" />;
+            })}
+            <circle cx="50" cy="50" r="25" fill="white" />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">{fmt(total)}</div>
+        </div>
+        <div className="flex-1 space-y-1">
+          {data.map(item => (
+            <div key={item.label} className="flex items-center gap-2 text-xs">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="flex-1">{item.label}</span>
+              <span>{fmt(item.value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VisionBoardCollage({ categories }) {
+  const [images, setImages] = useState([]);
+  const [refreshKey, setRefreshKey] = useState(0);
+  useEffect(() => {
+    const all = [];
+    categories.forEach(cat => {
+      if (cat.visionItems && cat.visionItems.length) {
+        const rand = Math.floor(Math.random() * cat.visionItems.length);
+        all.push({ url: cat.visionItems[rand].url, color: cat.color });
+      }
+    });
+    setImages(all);
+  }, [categories, refreshKey]);
+  const refresh = () => setRefreshKey(k => k + 1);
+  if (images.length === 0) return <div className="text-center py-4 text-[#aaa]">Agrega imágenes en "Vision Board"</div>;
+  return (
+    <div className="mt-6">
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="serif text-xl text-[#4a3a5c]">✦ Inspiración visual</h3>
+        <button onClick={refresh} className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50"><RefreshCw size={12} /> Actualizar collage</button>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 auto-rows-[160px]">
+        {images.map((img, idx) => (
+          <div key={idx} className="rounded-xl overflow-hidden shadow-md" style={{ backgroundColor: img.color }}>
+            <img src={img.url} alt="" className="w-full h-full object-cover" onError={e => e.target.src = "https://via.placeholder.com/300?text=Imagen+no+disponible"} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TaskDetailsForm({ task, catId, upd, color }) {
   const [open, setOpen] = useState(false);
   const [formData, setFormData] = useState({ concepto: "", caracteristica: "", precioUnitario: "", cantidad: "", total: 0 });
@@ -259,130 +385,6 @@ function TimelineForm({ upd, target = "timeline" }) {
   );
 }
 
-function Ring({ pct, color, sz = 88, label, sub }) {
-  const r = (sz - 14) / 2, c = 2 * Math.PI * r;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-      <svg width={sz} height={sz} viewBox={`0 0 ${sz} ${sz}`}>
-        <circle cx={sz / 2} cy={sz / 2} r={r} fill="none" stroke="#F0E8F5" strokeWidth={9} />
-        <circle cx={sz / 2} cy={sz / 2} r={r} fill="none" stroke={color} strokeWidth={9} strokeLinecap="round"
-          strokeDasharray={c} strokeDashoffset={c - (pct / 100) * c}
-          transform={`rotate(-90 ${sz / 2} ${sz / 2})`} style={{ transition: "stroke-dashoffset 1s ease" }} />
-        <text x={sz / 2} y={sz / 2 + 5} textAnchor="middle" fontSize={14} fontWeight={600} fill="#4a3a5c" fontFamily="DM Sans">{pct}%</text>
-      </svg>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 12, fontWeight: 500, color: "#6b6b8a" }}>{label}</div>
-        <div style={{ fontSize: 11, color: "#aaa" }}>{sub}</div>
-      </div>
-    </div>
-  );
-}
-
-function GuestByInviterChart({ guests }) {
-  let dani = 0, karim = 0;
-  guests.forEach(g => {
-    const inv = (g.invitado_de || "").toLowerCase();
-    if (inv === "dani") dani++;
-    else if (inv === "karim") karim++;
-    else if (inv === "ambos") { dani++; karim++; }
-  });
-  const total = guests.length;
-  if (total === 0) return null;
-  const daniPct = (dani / total) * 100;
-  const karimPct = (karim / total) * 100;
-  return (
-    <div className="mt-4">
-      <h4 className="text-xs font-semibold text-[#4a3a5c] mb-2">Invitados de</h4>
-      <div className="flex h-5 rounded-full overflow-hidden">
-        <div style={{ width: `${daniPct}%`, backgroundColor: "#E0BBE4" }} title={`Dani: ${dani}`} />
-        <div style={{ width: `${karimPct}%`, backgroundColor: "#B2AC88" }} title={`Karim: ${karim}`} />
-      </div>
-      <div className="flex justify-between text-xs mt-1">
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#E0BBE4]" /> Dani ({dani})</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#B2AC88]" /> Karim ({karim})</span>
-      </div>
-    </div>
-  );
-}
-
-function ExpensesByCategoryChart({ categories }) {
-  const data = categories.map(c => ({ label: c.label, value: c.budgetReal, color: c.color })).filter(c => c.value > 0);
-  const total = data.reduce((s, c) => s + c.value, 0);
-  if (total === 0) return <div className="text-center text-[#aaa] text-sm py-4">No hay gastos registrados</div>;
-  let accumulated = 0;
-  return (
-    <div className="mt-4">
-      <h4 className="text-sm font-semibold text-[#4a3a5c] mb-2">Gastos por categoría</h4>
-      <div className="flex flex-wrap gap-4 items-center">
-        <div className="relative w-24 h-24">
-          <svg viewBox="0 0 100 100" className="transform -rotate-90">
-            {data.map((item, idx) => {
-              const percent = (item.value / total) * 100;
-              const start = accumulated;
-              const end = start + percent;
-              const startAngle = (start / 100) * 360;
-              const endAngle = (end / 100) * 360;
-              const largeArc = percent > 50 ? 1 : 0;
-              const startRad = (startAngle * Math.PI) / 180;
-              const endRad = (endAngle * Math.PI) / 180;
-              const x1 = 50 + 40 * Math.cos(startRad);
-              const y1 = 50 + 40 * Math.sin(startRad);
-              const x2 = 50 + 40 * Math.cos(endRad);
-              const y2 = 50 + 40 * Math.sin(endRad);
-              const path = `M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`;
-              accumulated = end;
-              return <path key={idx} d={path} fill={item.color} stroke="white" strokeWidth="1" />;
-            })}
-            <circle cx="50" cy="50" r="25" fill="white" />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">{fmt(total)}</div>
-        </div>
-        <div className="flex-1 space-y-1">
-          {data.map(item => (
-            <div key={item.label} className="flex items-center gap-2 text-xs">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="flex-1">{item.label}</span>
-              <span>{fmt(item.value)}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function VisionBoardCollage({ categories }) {
-  const [images, setImages] = useState([]);
-  const [refreshKey, setRefreshKey] = useState(0);
-  useEffect(() => {
-    const all = [];
-    categories.forEach(cat => {
-      if (cat.visionItems && cat.visionItems.length) {
-        const rand = Math.floor(Math.random() * cat.visionItems.length);
-        all.push({ url: cat.visionItems[rand].url, color: cat.color });
-      }
-    });
-    setImages(all);
-  }, [categories, refreshKey]);
-  const refresh = () => setRefreshKey(k => k + 1);
-  if (images.length === 0) return <div className="text-center py-4 text-[#aaa]">Agrega imágenes en "Vision Board"</div>;
-  return (
-    <div className="mt-6">
-      <div className="flex justify-between items-center mb-3">
-        <h3 className="serif text-xl text-[#4a3a5c]">✦ Inspiración visual</h3>
-        <button onClick={refresh} className="flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-[#E0BBE4]/20 border border-[#E0BBE4]/50"><RefreshCw size={12} /> Actualizar collage</button>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 auto-rows-[160px]">
-        {images.map((img, idx) => (
-          <div key={idx} className="rounded-xl overflow-hidden shadow-md" style={{ backgroundColor: img.color }}>
-            <img src={img.url} alt="" className="w-full h-full object-cover" onError={e => e.target.src = "https://via.placeholder.com/300?text=Imagen+no+disponible"} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function CategoryGallery({ catId, gallery, upd }) {
   const [uploading, setUploading] = useState(false);
   const uploadImage = async (e) => {
@@ -427,6 +429,14 @@ function CategoryGallery({ catId, gallery, upd }) {
 }
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [isLoginMode, setIsLoginMode] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [securityCode, setSecurityCode] = useState("");
+  const [authError, setAuthError] = useState("");
+
   const [data, setData] = useState(() => safeState(JSON.parse(localStorage.getItem("wos5")) || INIT));
   const [sync, setSync] = useState("loading");
   const [tab, setTab] = useState("dashboard");
@@ -449,6 +459,40 @@ export default function App() {
   const [editTaskDate, setEditTaskDate] = useState("");
   const [editTaskPriority, setEditTaskPriority] = useState("");
 
+  // --- Autenticación ---
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      setSession(session);
+      setAuthLoading(false);
+    };
+    getSession();
+    const { data: listener } = sb.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => listener?.unsubscribe();
+  }, []);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthError("");
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) setAuthError(error.message);
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setAuthError("");
+    if (securityCode !== SECURITY_CODE) {
+      setAuthError("Código de seguridad incorrecto");
+      return;
+    }
+    const { error } = await sb.auth.signUp({ email, password });
+    if (error) setAuthError(error.message);
+    else alert("Registro exitoso. Revisa tu correo para confirmar (puedes iniciar sesión inmediatamente).");
+  };
+
+  // --- Funciones de la aplicación ---
   const loadFullGuests = async () => {
     const { data: guests } = await sb.from("guests").select("*");
     if (guests) {
@@ -491,8 +535,18 @@ export default function App() {
     setNewCatIcon("Heart");
     setNewCatBudget("");
   };
-  const deleteCategory = (catId) => { if (window.confirm("¿Eliminar categoría?")) upd(x => { x.categories = x.categories.filter(c => c.id !== catId); }); };
-  const openEditCategory = (cat) => { setEditCatModal(cat); setEditCatName(cat.label); setEditCatIcon(cat.icon); setEditCatBudget(cat.budgetEstimated.toString()); };
+
+  const deleteCategory = (catId) => {
+    if (window.confirm("¿Eliminar categoría?")) upd(x => { x.categories = x.categories.filter(c => c.id !== catId); });
+  };
+
+  const openEditCategory = (cat) => {
+    setEditCatModal(cat);
+    setEditCatName(cat.label);
+    setEditCatIcon(cat.icon);
+    setEditCatBudget(cat.budgetEstimated.toString());
+  };
+
   const saveEditCategory = () => {
     if (!editCatModal) return;
     upd(x => {
@@ -501,7 +555,14 @@ export default function App() {
     });
     setEditCatModal(null);
   };
-  const openEditTask = (catId, task) => { setEditTaskModal({ catId, task }); setEditTaskText(task.text); setEditTaskDate(task.date); setEditTaskPriority(task.priority); };
+
+  const openEditTask = (catId, task) => {
+    setEditTaskModal({ catId, task });
+    setEditTaskText(task.text);
+    setEditTaskDate(task.date);
+    setEditTaskPriority(task.priority);
+  };
+
   const saveEditTask = () => {
     if (!editTaskModal) return;
     upd(x => {
@@ -511,31 +572,6 @@ export default function App() {
     });
     setEditTaskModal(null);
   };
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data: row } = await sb.from("wedding_state").select("data").eq("id", ROW_ID).maybeSingle();
-        let safe = row?.data ? safeState(row.data) : INIT;
-        safe = await recalcBudgetRealFromPayments(safe);
-        setData(safe);
-        localStorage.setItem("wos5", JSON.stringify(safe));
-        setSync("idle");
-        await loadFullGuests();
-      } catch { setSync("error"); }
-    })();
-  }, []);
-
-  useEffect(() => {
-    const channel = sb.channel("wedding_realtime")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "wedding_state", filter: `id=eq.${ROW_ID}` }, (payload) => {
-        if (payload.new?.data) { setData(safeState(payload.new.data)); setSync("saved"); setTimeout(() => setSync("idle"), 2500); }
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "guests" }, () => loadFullGuests())
-      .on("postgres_changes", { event: "*", schema: "public", table: "task_payments" }, async () => { upd(async x => await recalcBudgetRealFromPayments(x)); })
-      .subscribe();
-    return () => sb.removeChannel(channel);
-  }, []);
 
   const pushToCloud = useCallback(async (payload) => {
     setSync("saving");
@@ -553,6 +589,34 @@ export default function App() {
       return next;
     });
   }, [debouncedPush]);
+
+  // Inicialización de datos al iniciar sesión
+  useEffect(() => {
+    if (!session) return;
+    (async () => {
+      try {
+        const { data: row } = await sb.from("wedding_state").select("data").eq("id", ROW_ID).maybeSingle();
+        let safe = row?.data ? safeState(row.data) : INIT;
+        safe = await recalcBudgetRealFromPayments(safe);
+        setData(safe);
+        localStorage.setItem("wos5", JSON.stringify(safe));
+        setSync("idle");
+        await loadFullGuests();
+      } catch { setSync("error"); }
+    })();
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) return;
+    const channel = sb.channel("wedding_realtime")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "wedding_state", filter: `id=eq.${ROW_ID}` }, (payload) => {
+        if (payload.new?.data) { setData(safeState(payload.new.data)); setSync("saved"); setTimeout(() => setSync("idle"), 2500); }
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "guests" }, () => loadFullGuests())
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_payments" }, async () => { upd(async x => await recalcBudgetRealFromPayments(x)); })
+      .subscribe();
+    return () => sb.removeChannel(channel);
+  }, [session]);
 
   const spent = data.categories.reduce((a, c) => a + (c.budgetReal || 0), 0);
   const estim = data.categories.reduce((a, c) => a + (c.budgetEstimated || 0), 0);
@@ -586,6 +650,45 @@ export default function App() {
     { id: "postits", l: "Post-its", I: StickyNote },
   ];
 
+  if (authLoading) return <div className="flex items-center justify-center min-h-screen">Cargando...</div>;
+  if (!session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#F5F0F8] via-[#EFF5F0] to-[#F8F2ED] p-4">
+        <div className="glass rounded-2xl p-8 max-w-md w-full">
+          <div className="text-center mb-6">
+            <div className="serif text-4xl text-[#4a3a5c]">Wedding OS</div>
+            <div className="serif text-2xl text-[#B2AC88] italic">✦</div>
+          </div>
+          <div className="flex gap-2 mb-6">
+            <button onClick={() => setIsLoginMode(true)} className={`flex-1 py-2 rounded-full ${isLoginMode ? "bg-[#E0BBE4] text-white" : "bg-white/50 text-[#4a3a5c]"}`}>Iniciar sesión</button>
+            <button onClick={() => setIsLoginMode(false)} className={`flex-1 py-2 rounded-full ${!isLoginMode ? "bg-[#E0BBE4] text-white" : "bg-white/50 text-[#4a3a5c]"}`}>Registrarse</button>
+          </div>
+          <form onSubmit={isLoginMode ? handleLogin : handleRegister} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[#4a3a5c] mb-1">Correo electrónico</label>
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#4a3a5c] mb-1">Contraseña</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200" required />
+            </div>
+            {!isLoginMode && (
+              <div>
+                <label className="block text-sm font-medium text-[#4a3a5c] mb-1">Código de seguridad</label>
+                <input type="text" value={securityCode} onChange={e => setSecurityCode(e.target.value)} className="w-full p-2 rounded-lg border border-gray-200" required />
+              </div>
+            )}
+            {authError && <div className="text-red-600 text-sm">{authError}</div>}
+            <button type="submit" className="w-full py-2 rounded-full bg-[#E0BBE4] text-white font-medium hover:bg-[#d0aad4] transition">
+              {isLoginMode ? "Iniciar sesión" : "Registrarse"}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Aplicación principal (igual que antes)
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "linear-gradient(135deg,#F5F0F8 0%,#EFF5F0 50%,#F8F2ED 100%)", fontFamily: "'DM Sans', sans-serif" }}>
       <style>{CSS}</style>
@@ -633,18 +736,9 @@ export default function App() {
                 <div style={{ fontSize: 11, fontWeight: 500, color: "#B2AC88", marginBottom: 10 }}>Invitados</div>
                 <div className="serif" style={{ fontSize: 44, color: "#4a3a5c", fontWeight: 300, marginBottom: 14 }}>{guestStats.total}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                  <div style={{ background: "#B2AC8833", borderRadius: 11, padding: "9px 6px", textAlign: "center" }}>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "#4a3a5c" }}>{guestStats.confirmados}</div>
-                    <div style={{ fontSize: 10, color: "#888" }}>Conf.</div>
-                  </div>
-                  <div style={{ background: "#FFD58033", borderRadius: 11, padding: "9px 6px", textAlign: "center" }}>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "#4a3a5c" }}>{guestStats.pendientes}</div>
-                    <div style={{ fontSize: 10, color: "#888" }}>Pend.</div>
-                  </div>
-                  <div style={{ background: "#F4A5A533", borderRadius: 11, padding: "9px 6px", textAlign: "center" }}>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: "#4a3a5c" }}>{guestStats.rechazados}</div>
-                    <div style={{ fontSize: 10, color: "#888" }}>Rech.</div>
-                  </div>
+                  <div style={{ background: "#B2AC8833", borderRadius: 11, padding: "9px 6px", textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 700, color: "#4a3a5c" }}>{guestStats.confirmados}</div><div style={{ fontSize: 10, color: "#888" }}>Conf.</div></div>
+                  <div style={{ background: "#FFD58033", borderRadius: 11, padding: "9px 6px", textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 700, color: "#4a3a5c" }}>{guestStats.pendientes}</div><div style={{ fontSize: 10, color: "#888" }}>Pend.</div></div>
+                  <div style={{ background: "#F4A5A533", borderRadius: 11, padding: "9px 6px", textAlign: "center" }}><div style={{ fontSize: 22, fontWeight: 700, color: "#4a3a5c" }}>{guestStats.rechazados}</div><div style={{ fontSize: 10, color: "#888" }}>Rech.</div></div>
                 </div>
                 <GuestByInviterChart guests={guestsList} />
               </div>
